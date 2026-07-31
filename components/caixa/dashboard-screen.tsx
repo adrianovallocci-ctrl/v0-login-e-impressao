@@ -434,7 +434,7 @@ export function DashboardScreen({
                     <div className="space-y-1">
                       <h2 className="font-semibold">Reimprimir benefício</h2>
                       <p className="text-sm text-muted-foreground">
-                        Se a via do resgate não saiu na térmica, reenvie pela fila.
+                        Se a via do resgate não saiu na impressora térmica, reenvie a impressão por aqui.
                       </p>
                     </div>
                     <Button
