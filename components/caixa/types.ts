@@ -12,6 +12,29 @@ export type CheckinPrintResult = {
   expires_at: string
 }
 
+export type LoyaltyRewardItem = {
+  id: string
+  variation_label: string | null
+  table_number: string
+  customer_name: string | null
+  customer_phone_display: string
+  garcom_name: string | null
+  checkins_debited: number
+  status: string
+  created_at: string
+}
+
+export function formatRewardWhen(iso: string): string {
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return ""
+  return date.toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  })
+}
+
 export function readCapability(
   caps: Record<string, unknown>,
   root: Record<string, unknown>,
