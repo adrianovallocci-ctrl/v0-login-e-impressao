@@ -363,20 +363,20 @@ export function DashboardScreen({
         <div
           className={
             loyaltyEnabled && vitrineEnabled
-              ? "grid grid-cols-1 items-start gap-6 lg:grid-cols-2"
+              ? "grid grid-cols-1 items-stretch gap-6 lg:grid-cols-2"
               : "mx-auto flex w-full max-w-md flex-col gap-6"
           }
         >
           {loyaltyEnabled ? (
-            <section className="overflow-hidden rounded-xl border bg-card shadow-sm">
-              <div className="bg-[#0B3D91]">
+            <section className="flex h-full flex-col overflow-hidden rounded-xl border bg-card shadow-sm">
+              <div className="aspect-[2.4/1] bg-[#0B3D91]">
                 <img
                   src="/fidelidade-consumo-local-banner.jpg"
                   alt="Fidelidade consumo no local"
-                  className="block h-auto w-full"
+                  className="size-full object-cover"
                 />
               </div>
-              <div className="flex flex-col gap-3 p-3">
+              <div className="flex flex-1 flex-col gap-3 p-3">
                 <Card className="border-0 shadow-none">
                   <CardContent className="pt-3 pb-3">
                     <Button
@@ -435,8 +435,8 @@ export function DashboardScreen({
                   </Card>
                 ) : null}
 
-                <Card className="border shadow-none">
-                  <CardContent className="space-y-4 pt-4 pb-4">
+                <Card className="flex flex-1 flex-col border shadow-none">
+                  <CardContent className="flex flex-1 flex-col space-y-4 pt-4 pb-4">
                     <div className="flex items-start justify-between gap-2">
                       <div className="space-y-1">
                         <h2 className="font-semibold">Reimprimir benefício</h2>
@@ -532,24 +532,38 @@ export function DashboardScreen({
           ) : null}
 
           {vitrineEnabled ? (
-            <section className="overflow-hidden rounded-xl border bg-card shadow-sm">
-              <div className="bg-[#0B3D91]">
+            <section className="flex h-full flex-col overflow-hidden rounded-xl border bg-card shadow-sm">
+              <div className="aspect-[2.4/1] bg-[#0B3D91]">
                 <img
                   src="/Cupom-Hospedeiro.jpg"
                   alt="Cupom hospedeiro"
-                  className="block h-auto w-full"
+                  className="size-full object-cover"
                 />
               </div>
-              <div className="flex flex-col gap-3 p-3">
+              <div className="flex flex-1 flex-col gap-3 p-3">
                 <Card className="border-0 shadow-none">
-                  <CardContent className="space-y-4 pt-3 pb-3">
-                    <div className="space-y-1">
-                      <h2 className="font-semibold">Cupom Vitrine</h2>
-                      <p className="text-sm text-muted-foreground">
-                        Impressão térmica para colocar na sacola (iFood, Rappi…).
-                      </p>
-                    </div>
-                    <div className="flex items-center justify-center gap-3">
+                  <CardContent className="pt-3 pb-3">
+                    <Button
+                      onClick={printVitrine}
+                      disabled={busy}
+                      className="h-20 w-full text-lg"
+                    >
+                      {vitrineLoading ? (
+                        <>
+                          <Loader2
+                            className="size-5 animate-spin"
+                            aria-hidden="true"
+                          />
+                          Enviando...
+                        </>
+                      ) : (
+                        <>
+                          <Printer className="size-6" aria-hidden="true" />
+                          Imprimir Cupom Hospedeiro (Vitrine)
+                        </>
+                      )}
+                    </Button>
+                    <div className="mt-3 flex items-center justify-center gap-3">
                       <Button
                         variant="outline"
                         size="sm"
@@ -568,21 +582,17 @@ export function DashboardScreen({
                         +
                       </Button>
                     </div>
-                    <Button
-                      variant="outline"
-                      onClick={printVitrine}
-                      disabled={busy}
-                      className="h-14 w-full text-base"
-                    >
-                      {vitrineLoading ? (
-                        <>
-                          <Loader2 className="size-5 animate-spin" aria-hidden="true" />
-                          Enviando...
-                        </>
-                      ) : (
-                        "Imprimir Cupom Hospedeiro (Vitrine)"
-                      )}
-                    </Button>
+                  </CardContent>
+                </Card>
+
+                <Card className="flex flex-1 flex-col border shadow-none">
+                  <CardContent className="flex flex-1 flex-col justify-between space-y-4 pt-4 pb-4">
+                    <div className="space-y-1">
+                      <h2 className="font-semibold">Cupom Vitrine</h2>
+                      <p className="text-sm text-muted-foreground">
+                        Impressão térmica para colocar na sacola (iFood, Rappi…).
+                      </p>
+                    </div>
                     <p className="text-center text-xs text-muted-foreground">
                       Cada impressão envia cupons para a fila da impressora.
                     </p>
