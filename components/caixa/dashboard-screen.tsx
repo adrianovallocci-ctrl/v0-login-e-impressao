@@ -586,16 +586,13 @@ export function DashboardScreen({
                 </Card>
 
                 <Card className="flex flex-1 flex-col border shadow-none">
-                  <CardContent className="flex flex-1 flex-col justify-between space-y-4 pt-4 pb-4">
+                  <CardContent className="flex flex-1 flex-col space-y-4 pt-4 pb-4">
                     <div className="space-y-1">
                       <h2 className="font-semibold">Cupom Vitrine</h2>
                       <p className="text-sm text-muted-foreground">
                         Impressão térmica para colocar na sacola (iFood, Rappi…).
                       </p>
                     </div>
-                    <p className="text-center text-xs text-muted-foreground">
-                      Cada impressão envia cupons para a fila da impressora.
-                    </p>
                   </CardContent>
                 </Card>
               </div>
