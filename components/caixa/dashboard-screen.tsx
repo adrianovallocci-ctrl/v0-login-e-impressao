@@ -359,207 +359,246 @@ export function DashboardScreen({
         </div>
       ) : null}
 
-      <main className="mx-auto flex w-full max-w-md flex-1 flex-col gap-4 p-4">
-        {loyaltyEnabled ? (
-          <Card>
-            <CardContent className="pt-6">
-              <Button
-                onClick={printCheckin}
-                disabled={busy}
-                className="h-20 w-full text-lg"
-              >
-                {checkinLoading ? (
-                  <>
-                    <Loader2 className="size-5 animate-spin" aria-hidden="true" />
-                    Enviando...
-                  </>
-                ) : (
-                  <>
-                    <Printer className="size-6" aria-hidden="true" />
-                    Imprimir QR de check-in
-                  </>
-                )}
-              </Button>
-              <p className="mt-2 text-center text-sm text-muted-foreground">
-                Programa de Fidelidade | Consumo no Local
-              </p>
-              {timerActive || checkinResult ? (
-                <div className="mt-4 flex items-center justify-center gap-2 rounded-md bg-muted px-3 py-2 text-sm">
-                  <Timer className="size-4 text-muted-foreground" aria-hidden="true" />
-                  <span className="text-muted-foreground">Desde o clique:</span>
-                  <span className="font-mono font-medium tabular-nums">
-                    {formatElapsed(elapsedMs)}
-                  </span>
-                </div>
-              ) : null}
-            </CardContent>
-          </Card>
-        ) : null}
-
-        {checkinResult ? (
-          <Card>
-            <CardContent className="space-y-4 pt-6">
-              <p className="text-center text-sm font-medium text-green-600">
-                QR enviado para impressora
-              </p>
-              {qrUrl ? (
-                <div className="flex justify-center">
-                  <QRCodeSVG value={qrUrl} size={160} />
-                </div>
-              ) : null}
-              {expiresLabel ? (
-                <p className="text-center text-sm text-muted-foreground">
-                  Válido até {expiresLabel}
-                  {expiresInMs <= 0 ? " (expirado)" : ""}
-                </p>
-              ) : null}
-            </CardContent>
-          </Card>
-        ) : null}
-
-        {loyaltyEnabled ? (
-          <Card>
-            <CardContent className="space-y-4 pt-6">
-              <div className="flex items-start justify-between gap-2">
-                <div className="space-y-1">
-                  <h2 className="font-semibold">Reimprimir benefício</h2>
-                  <p className="text-sm text-muted-foreground">
-                    Se a via do resgate não saiu na térmica, reenvie pela fila.
-                  </p>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => void loadRewards()}
-                  disabled={rewardsLoading || busy}
-                  aria-label="Atualizar lista de resgates"
-                >
-                  <RefreshCw
-                    className={`size-4 ${rewardsLoading ? "animate-spin" : ""}`}
-                    aria-hidden="true"
-                  />
-                </Button>
+      <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-6 p-4">
+        <div
+          className={
+            loyaltyEnabled && vitrineEnabled
+              ? "grid grid-cols-1 items-stretch gap-6 lg:grid-cols-2"
+              : "mx-auto flex w-full max-w-md flex-col gap-6"
+          }
+        >
+          {loyaltyEnabled ? (
+            <section className="flex h-full flex-col overflow-hidden rounded-xl border bg-card shadow-sm">
+              <div className="aspect-[2.4/1] bg-[#0B3D91]">
+                <img
+                  src="/fidelidade-consumo-local-banner.jpg"
+                  alt="Fidelidade consumo no local"
+                  className="size-full object-cover"
+                />
               </div>
-
-              {rewardsLoading && rewards.length === 0 ? (
-                <div className="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
-                  <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-                  Carregando…
-                </div>
-              ) : null}
-
-              {!rewardsLoading && rewards.length === 0 ? (
-                <p className="rounded-md bg-muted px-3 py-4 text-center text-sm text-muted-foreground">
-                  Nenhum resgate aguardando impressão.
-                </p>
-              ) : null}
-
-              <ul className="space-y-3">
-                {rewards.map((reward) => {
-                  const cliente =
-                    reward.customer_name?.trim() ||
-                    reward.customer_phone_display ||
-                    "Cliente"
-                  const beneficio = reward.variation_label?.trim() || "Benefício"
-                  const when = formatRewardWhen(reward.created_at)
-                  const isReprint = reprintingId === reward.id
-
-                  return (
-                    <li
-                      key={reward.id}
-                      className="rounded-md border bg-background px-3 py-3"
+              <div className="flex flex-1 flex-col gap-3 p-3">
+                <Card className="border-0 shadow-none">
+                  <CardContent className="pt-3 pb-3">
+                    <Button
+                      onClick={printCheckin}
+                      disabled={busy}
+                      className="h-20 w-full text-lg"
                     >
-                      <div className="space-y-1 text-sm">
-                        <p className="font-medium">{beneficio}</p>
-                        <p className="text-muted-foreground">
-                          Mesa {reward.table_number}
-                          {when ? ` · ${when}` : ""}
+                      {checkinLoading ? (
+                        <>
+                          <Loader2
+                            className="size-5 animate-spin"
+                            aria-hidden="true"
+                          />
+                          Enviando...
+                        </>
+                      ) : (
+                        <>
+                          <Printer className="size-6" aria-hidden="true" />
+                          Imprimir QR de check-in
+                        </>
+                      )}
+                    </Button>
+                    {timerActive || checkinResult ? (
+                      <div className="mt-3 flex items-center justify-center gap-2 rounded-md bg-muted px-3 py-2 text-sm">
+                        <Timer
+                          className="size-4 text-muted-foreground"
+                          aria-hidden="true"
+                        />
+                        <span className="text-muted-foreground">Desde o clique:</span>
+                        <span className="font-mono font-medium tabular-nums">
+                          {formatElapsed(elapsedMs)}
+                        </span>
+                      </div>
+                    ) : null}
+                  </CardContent>
+                </Card>
+
+                {checkinResult ? (
+                  <Card className="border shadow-none">
+                    <CardContent className="space-y-4 pt-4 pb-4">
+                      <p className="text-center text-sm font-medium text-green-600">
+                        QR enviado para impressora
+                      </p>
+                      {qrUrl ? (
+                        <div className="flex justify-center">
+                          <QRCodeSVG value={qrUrl} size={160} />
+                        </div>
+                      ) : null}
+                      {expiresLabel ? (
+                        <p className="text-center text-sm text-muted-foreground">
+                          Válido até {expiresLabel}
+                          {expiresInMs <= 0 ? " (expirado)" : ""}
                         </p>
-                        <p className="text-muted-foreground">
-                          {cliente}
-                          {reward.garcom_name
-                            ? ` · Garçom ${reward.garcom_name}`
-                            : ""}
+                      ) : null}
+                    </CardContent>
+                  </Card>
+                ) : null}
+
+                <Card className="flex flex-1 flex-col border shadow-none">
+                  <CardContent className="flex flex-1 flex-col space-y-4 pt-4 pb-4">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="space-y-1">
+                        <h2 className="font-semibold">Reimprimir benefício</h2>
+                        <p className="text-sm text-muted-foreground">
+                          Se a via do resgate não saiu na impressora térmica, reenvie a impressão por aqui.
                         </p>
                       </div>
                       <Button
-                        variant="outline"
-                        className="mt-3 h-11 w-full"
-                        disabled={busy}
-                        onClick={() => void reprintReward(reward.id)}
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => void loadRewards()}
+                        disabled={rewardsLoading || busy}
+                        aria-label="Atualizar lista de resgates"
                       >
-                        {isReprint ? (
-                          <>
-                            <Loader2
-                              className="size-4 animate-spin"
-                              aria-hidden="true"
-                            />
-                            Enviando...
-                          </>
-                        ) : (
-                          <>
-                            <Printer className="size-4" aria-hidden="true" />
-                            Reimprimir
-                          </>
-                        )}
+                        <RefreshCw
+                          className={`size-4 ${rewardsLoading ? "animate-spin" : ""}`}
+                          aria-hidden="true"
+                        />
                       </Button>
-                    </li>
-                  )
-                })}
-              </ul>
-            </CardContent>
-          </Card>
-        ) : null}
+                    </div>
 
-        {vitrineEnabled ? (
-          <Card>
-            <CardContent className="space-y-4 pt-6">
-              <div className="space-y-1">
-                <h2 className="font-semibold">Cupom Vitrine</h2>
-                <p className="text-sm text-muted-foreground">
-                  Cupom para embalagem de pedido de plataforma (iFood, Rappi…).
-                </p>
+                    {rewardsLoading && rewards.length === 0 ? (
+                      <div className="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
+                        <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                        Carregando…
+                      </div>
+                    ) : null}
+
+                    {!rewardsLoading && rewards.length === 0 ? (
+                      <p className="rounded-md bg-muted px-3 py-4 text-center text-sm text-muted-foreground">
+                        Nenhum resgate aguardando impressão.
+                      </p>
+                    ) : null}
+
+                    <ul className="space-y-3">
+                      {rewards.map((reward) => {
+                        const cliente =
+                          reward.customer_name?.trim() ||
+                          reward.customer_phone_display ||
+                          "Cliente"
+                        const beneficio =
+                          reward.variation_label?.trim() || "Benefício"
+                        const when = formatRewardWhen(reward.created_at)
+                        const isReprint = reprintingId === reward.id
+
+                        return (
+                          <li
+                            key={reward.id}
+                            className="rounded-md border bg-background px-3 py-3"
+                          >
+                            <div className="space-y-1 text-sm">
+                              <p className="font-medium">{beneficio}</p>
+                              <p className="text-muted-foreground">
+                                Mesa {reward.table_number}
+                                {when ? ` · ${when}` : ""}
+                              </p>
+                              <p className="text-muted-foreground">
+                                {cliente}
+                                {reward.garcom_name
+                                  ? ` · Garçom ${reward.garcom_name}`
+                                  : ""}
+                              </p>
+                            </div>
+                            <Button
+                              variant="outline"
+                              className="mt-3 h-11 w-full"
+                              disabled={busy}
+                              onClick={() => void reprintReward(reward.id)}
+                            >
+                              {isReprint ? (
+                                <>
+                                  <Loader2
+                                    className="size-4 animate-spin"
+                                    aria-hidden="true"
+                                  />
+                                  Enviando...
+                                </>
+                              ) : (
+                                <>
+                                  <Printer className="size-4" aria-hidden="true" />
+                                  Reimprimir
+                                </>
+                              )}
+                            </Button>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  </CardContent>
+                </Card>
               </div>
-              <div className="flex items-center justify-center gap-3">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                  disabled={quantity <= 1 || busy}
-                >
-                  −
-                </Button>
-                <span className="min-w-8 text-center font-medium">{quantity}</span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setQuantity((q) => Math.min(10, q + 1))}
-                  disabled={quantity >= 10 || busy}
-                >
-                  +
-                </Button>
+            </section>
+          ) : null}
+
+          {vitrineEnabled ? (
+            <section className="flex h-full flex-col overflow-hidden rounded-xl border bg-card shadow-sm">
+              <div className="aspect-[2.4/1] bg-[#F06818]">
+                <img
+                  src="/Cupom-Hospedeiro.jpg"
+                  alt="Cupom hospedeiro"
+                  className="size-full object-cover"
+                />
               </div>
-              <Button
-                variant="outline"
-                onClick={printVitrine}
-                disabled={busy}
-                className="h-14 w-full text-base"
-              >
-                {vitrineLoading ? (
-                  <>
-                    <Loader2 className="size-5 animate-spin" aria-hidden="true" />
-                    Enviando...
-                  </>
-                ) : (
-                  "Imprimir Cupom Hospedeiro (Vitrine)"
-                )}
-              </Button>
-              <p className="text-center text-xs text-muted-foreground">
-                Cada impressão envia cupons para a fila da impressora.
-              </p>
-            </CardContent>
-          </Card>
-        ) : null}
+              <div className="flex flex-1 flex-col gap-3 p-3">
+                <Card className="border-0 shadow-none">
+                  <CardContent className="pt-3 pb-3">
+                    <Button
+                      onClick={printVitrine}
+                      disabled={busy}
+                      className="h-20 w-full bg-[#F06818] text-lg text-white hover:bg-[#D95A12] focus-visible:ring-[#F06818]"
+                    >
+                      {vitrineLoading ? (
+                        <>
+                          <Loader2
+                            className="size-5 animate-spin"
+                            aria-hidden="true"
+                          />
+                          Enviando...
+                        </>
+                      ) : (
+                        <>
+                          <Printer className="size-6" aria-hidden="true" />
+                          Imprimir Cupom Hospedeiro (Vitrine)
+                        </>
+                      )}
+                    </Button>
+                    <div className="mt-3 flex items-center justify-center gap-3">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                        disabled={quantity <= 1 || busy}
+                      >
+                        −
+                      </Button>
+                      <span className="min-w-8 text-center font-medium">{quantity}</span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setQuantity((q) => Math.min(10, q + 1))}
+                        disabled={quantity >= 10 || busy}
+                      >
+                        +
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="flex flex-1 flex-col border shadow-none">
+                  <CardContent className="flex flex-1 flex-col space-y-4 pt-4 pb-4">
+                    <div className="space-y-1">
+                      <h2 className="font-semibold">Cupom Vitrine</h2>
+                      <p className="text-sm text-muted-foreground">
+                        Impressão térmica para colocar na sacola (iFood, Rappi…).
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </section>
+          ) : null}
+        </div>
       </main>
     </div>
   )
