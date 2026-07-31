@@ -533,7 +533,7 @@ export function DashboardScreen({
 
           {vitrineEnabled ? (
             <section className="flex h-full flex-col overflow-hidden rounded-xl border bg-card shadow-sm">
-              <div className="aspect-[2.4/1] bg-[#0B3D91]">
+              <div className="aspect-[2.4/1] bg-[#F06818]">
                 <img
                   src="/Cupom-Hospedeiro.jpg"
                   alt="Cupom hospedeiro"
@@ -546,7 +546,7 @@ export function DashboardScreen({
                     <Button
                       onClick={printVitrine}
                       disabled={busy}
-                      className="h-20 w-full text-lg"
+                      className="h-20 w-full bg-[#F06818] text-lg text-white hover:bg-[#D95A12] focus-visible:ring-[#F06818]"
                     >
                       {vitrineLoading ? (
                         <>
