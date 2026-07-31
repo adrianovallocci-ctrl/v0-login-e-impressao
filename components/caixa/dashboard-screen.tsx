@@ -1,6 +1,6 @@
 "use client"
 
-import { Loader2, LogOut, Printer, Timer } from "lucide-react"
+import { Loader2, LogOut, Printer, RefreshCw, Timer } from "lucide-react"
 import { QRCodeSVG } from "qrcode.react"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
@@ -8,12 +8,48 @@ import { toast } from "sonner"
 import { useAuth } from "@/components/caixa/auth-provider"
 import {
   formatElapsed,
+  formatRewardWhen,
   parseApiError,
   type CheckinPrintResult,
   type EstablishmentView,
+  type LoyaltyRewardItem,
 } from "@/components/caixa/types"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+
+const PREVIEW_REWARDS: LoyaltyRewardItem[] = [
+  {
+    id: "preview-reward-1",
+    variation_label: "Pizza broto",
+    table_number: "12",
+    customer_name: "Maria Silva",
+    customer_phone_display: "(11) 9****-4321",
+    garcom_name: "João",
+    checkins_debited: 5,
+    status: "pending_print",
+    created_at: new Date().toISOString(),
+  },
+]
+
+function mapReward(raw: Record<string, unknown>): LoyaltyRewardItem {
+  return {
+    id: String(raw.id ?? ""),
+    variation_label: (raw.variation_label ?? raw.variationLabel ?? null) as
+      | string
+      | null,
+    table_number: String(raw.table_number ?? raw.tableNumber ?? "—"),
+    customer_name: (raw.customer_name ?? raw.customerName ?? null) as
+      | string
+      | null,
+    customer_phone_display: String(
+      raw.customer_phone_display ?? raw.customerPhoneDisplay ?? "",
+    ),
+    garcom_name: (raw.garcom_name ?? raw.garcomName ?? null) as string | null,
+    checkins_debited: Number(raw.checkins_debited ?? raw.checkinsDebited ?? 0),
+    status: String(raw.status ?? ""),
+    created_at: String(raw.created_at ?? raw.createdAt ?? ""),
+  }
+}
 
 export function DashboardScreen({
   establishment,
@@ -27,6 +63,9 @@ export function DashboardScreen({
   )
   const [quantity, setQuantity] = useState(1)
   const [vitrineLoading, setVitrineLoading] = useState(false)
+  const [rewards, setRewards] = useState<LoyaltyRewardItem[]>([])
+  const [rewardsLoading, setRewardsLoading] = useState(false)
+  const [reprintingId, setReprintingId] = useState<string | null>(null)
   const startedAtRef = useRef<number | null>(null)
   const [elapsedMs, setElapsedMs] = useState(0)
   const [timerActive, setTimerActive] = useState(false)
@@ -34,7 +73,63 @@ export function DashboardScreen({
 
   const loyaltyEnabled = establishment?.loyaltyCheckinEnabled ?? false
   const vitrineEnabled = establishment?.vitrineCouponEnabled ?? false
-  const busy = checkinLoading || vitrineLoading
+  const busy = checkinLoading || vitrineLoading || reprintingId != null
+
+  const loadRewards = useCallback(async () => {
+    if (!loyaltyEnabled) return
+
+    if (preview && !token) {
+      setRewards(PREVIEW_REWARDS)
+      return
+    }
+    if (!token) return
+
+    setRewardsLoading(true)
+    try {
+      const response = await fetch(
+        "/api/proxy/collaborator/loyalty-rewards?status=pending_print",
+        {
+          headers: { authorization: `Bearer ${token}` },
+          cache: "no-store",
+        },
+      )
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          toast.error("Sessão expirada. Faça login novamente.")
+          clearToken()
+          return
+        }
+        const detail = await parseApiError(response)
+        toast.error(detail ?? "Não foi possível carregar resgates pendentes.")
+        return
+      }
+
+      const body = await response.json()
+      const rows = Array.isArray(body) ? body : []
+      setRewards(
+        rows
+          .map((row) => mapReward(row as Record<string, unknown>))
+          .filter((row) => row.id),
+      )
+    } catch {
+      toast.error("Falha de conexão ao carregar resgates.")
+    } finally {
+      setRewardsLoading(false)
+    }
+  }, [loyaltyEnabled, preview, token, clearToken])
+
+  useEffect(() => {
+    void loadRewards()
+  }, [loadRewards])
+
+  useEffect(() => {
+    if (!loyaltyEnabled || !token) return
+    const id = setInterval(() => {
+      void loadRewards()
+    }, 20_000)
+    return () => clearInterval(id)
+  }, [loyaltyEnabled, token, loadRewards])
 
   useEffect(() => {
     if (!timerActive) return
@@ -174,6 +269,49 @@ export function DashboardScreen({
     }
   }, [token, preview, quantity, clearToken])
 
+  const reprintReward = useCallback(
+    async (rewardId: string) => {
+      if (preview && !token) {
+        toast.info("Modo teste — faça login para reimprimir.")
+        return
+      }
+
+      setReprintingId(rewardId)
+      try {
+        const response = await fetch(
+          `/api/proxy/collaborator/loyalty-rewards/${rewardId}/reprint`,
+          {
+            method: "POST",
+            headers: { authorization: `Bearer ${token}` },
+          },
+        )
+
+        if (!response.ok) {
+          if (response.status === 401) {
+            toast.error("Sessão expirada. Faça login novamente.")
+            clearToken()
+            return
+          }
+          const detail = await parseApiError(response)
+          toast.error(detail ?? "Não foi possível reimprimir o resgate.")
+          return
+        }
+
+        const data = await response.json()
+        const jobId = String(data.job_id ?? data.jobId ?? "")
+        toast.success("Reimpressão enfileirada.", {
+          description: jobId ? `Job ${jobId.slice(0, 8)}…` : undefined,
+        })
+        await loadRewards()
+      } catch {
+        toast.error("Falha de conexão. Tente novamente.")
+      } finally {
+        setReprintingId(null)
+      }
+    },
+    [preview, token, clearToken, loadRewards],
+  )
+
   const qrUrl = checkinResult?.checkin_token
     ? `https://app.cuponfood.com.br/loyalty/checkin?t=${checkinResult.checkin_token}`
     : ""
@@ -275,6 +413,100 @@ export function DashboardScreen({
                   {expiresInMs <= 0 ? " (expirado)" : ""}
                 </p>
               ) : null}
+            </CardContent>
+          </Card>
+        ) : null}
+
+        {loyaltyEnabled ? (
+          <Card>
+            <CardContent className="space-y-4 pt-6">
+              <div className="flex items-start justify-between gap-2">
+                <div className="space-y-1">
+                  <h2 className="font-semibold">Reimprimir benefício</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Se a via do resgate não saiu na térmica, reenvie pela fila.
+                  </p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => void loadRewards()}
+                  disabled={rewardsLoading || busy}
+                  aria-label="Atualizar lista de resgates"
+                >
+                  <RefreshCw
+                    className={`size-4 ${rewardsLoading ? "animate-spin" : ""}`}
+                    aria-hidden="true"
+                  />
+                </Button>
+              </div>
+
+              {rewardsLoading && rewards.length === 0 ? (
+                <div className="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
+                  <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                  Carregando…
+                </div>
+              ) : null}
+
+              {!rewardsLoading && rewards.length === 0 ? (
+                <p className="rounded-md bg-muted px-3 py-4 text-center text-sm text-muted-foreground">
+                  Nenhum resgate aguardando impressão.
+                </p>
+              ) : null}
+
+              <ul className="space-y-3">
+                {rewards.map((reward) => {
+                  const cliente =
+                    reward.customer_name?.trim() ||
+                    reward.customer_phone_display ||
+                    "Cliente"
+                  const beneficio = reward.variation_label?.trim() || "Benefício"
+                  const when = formatRewardWhen(reward.created_at)
+                  const isReprint = reprintingId === reward.id
+
+                  return (
+                    <li
+                      key={reward.id}
+                      className="rounded-md border bg-background px-3 py-3"
+                    >
+                      <div className="space-y-1 text-sm">
+                        <p className="font-medium">{beneficio}</p>
+                        <p className="text-muted-foreground">
+                          Mesa {reward.table_number}
+                          {when ? ` · ${when}` : ""}
+                        </p>
+                        <p className="text-muted-foreground">
+                          {cliente}
+                          {reward.garcom_name
+                            ? ` · Garçom ${reward.garcom_name}`
+                            : ""}
+                        </p>
+                      </div>
+                      <Button
+                        variant="outline"
+                        className="mt-3 h-11 w-full"
+                        disabled={busy}
+                        onClick={() => void reprintReward(reward.id)}
+                      >
+                        {isReprint ? (
+                          <>
+                            <Loader2
+                              className="size-4 animate-spin"
+                              aria-hidden="true"
+                            />
+                            Enviando...
+                          </>
+                        ) : (
+                          <>
+                            <Printer className="size-4" aria-hidden="true" />
+                            Reimprimir
+                          </>
+                        )}
+                      </Button>
+                    </li>
+                  )
+                })}
+              </ul>
             </CardContent>
           </Card>
         ) : null}
