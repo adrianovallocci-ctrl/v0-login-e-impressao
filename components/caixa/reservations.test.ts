@@ -1,0 +1,234 @@
+import { afterEach, describe, expect, it, vi } from "vitest"
+
+import { parseApiError, parseApiErrorDetail } from "@/components/caixa/types"
+import {
+  actionsForStatus,
+  capacityLabel,
+  filterPreviewItems,
+  formatReservationListLine,
+  formatSummaryLine,
+  listLineExposesFullPhone,
+  listPhoneMask,
+  mapReservationList,
+  PREVIEW_RESERVATIONS,
+  postThenRefetch,
+  shouldPollReservations,
+  shouldShowReservationsBlock,
+  sortReservationsByStartsAt,
+  startReservationsPoll,
+  unmarkedBannerCopy,
+} from "@/components/caixa/reservations"
+
+describe("formatSummaryLine", () => {
+  it("uses maior entrada, never pico", () => {
+    const line = formatSummaryLine({
+      reservations_count: 12,
+      people_count: 34,
+      peak_local_time: "20:30",
+      cadeiroes_count: 2,
+      carrinhos_count: 1,
+    })
+    expect(line).toBe(
+      "Hoje: 12 reservas · 34 pessoas · maior entrada 20h30 · 2 cadeirões · 1 carrinho",
+    )
+    expect(line.toLowerCase()).not.toContain("pico")
+  })
+})
+
+describe("unmarkedBannerCopy", () => {
+  it("hides when count is zero", () => {
+    expect(unmarkedBannerCopy(0)).toBeNull()
+  })
+
+  it("keeps chronological copy", () => {
+    expect(unmarkedBannerCopy(3)).toBe("3 reservas de hoje sem marcação")
+  })
+})
+
+describe("sortReservationsByStartsAt", () => {
+  it("keeps starts_at ASC even when unmarked is first in input", () => {
+    const unmarked = PREVIEW_RESERVATIONS.items.find((item) => item.unmarked)!
+    const others = PREVIEW_RESERVATIONS.items.filter((item) => !item.unmarked)
+    const sorted = sortReservationsByStartsAt([others[1], unmarked, others[0]])
+    expect(sorted.map((item) => item.id)).toEqual([
+      "preview-confirmed-unmarked",
+      "preview-pending-vaga",
+      "preview-pending-lotado",
+    ])
+  })
+})
+
+describe("capacityLabel", () => {
+  it("warns pending without vacancy", () => {
+    expect(capacityLabel("pending", false)).toBe("Horário sem vaga")
+    expect(capacityLabel("pending", true)).toBe("Horário com vaga")
+    expect(capacityLabel("confirmed", false)).toBeNull()
+  })
+})
+
+describe("actionsForStatus", () => {
+  it("matches the caixa action matrix", () => {
+    expect(actionsForStatus("pending")).toEqual([
+      "confirm",
+      "decline",
+      "cancel",
+    ])
+    expect(actionsForStatus("confirmed")).toEqual([
+      "seat",
+      "no_show",
+      "cancel",
+    ])
+    expect(actionsForStatus("seated")).toEqual([])
+    expect(actionsForStatus("declined")).toEqual([])
+  })
+})
+
+describe("list phone", () => {
+  it("masks last 4 and never puts the full number on the list line", () => {
+    const item = PREVIEW_RESERVATIONS.items[0]
+    const line = formatReservationListLine(item)
+    expect(listPhoneMask(item.phone_canonical)).toBe("····4321")
+    expect(line).toContain("····4321")
+    expect(listLineExposesFullPhone(item, line)).toBe(false)
+  })
+})
+
+describe("shouldShowReservationsBlock", () => {
+  it("hides when module is off and does not depend on print flags", () => {
+    expect(shouldShowReservationsBlock(true)).toBe(true)
+    expect(shouldShowReservationsBlock(false)).toBe(false)
+    expect(shouldShowReservationsBlock(null)).toBe(false)
+  })
+})
+
+describe("print cards stay independent", () => {
+  it("loyalty and vitrine flags are not gated by reservations", () => {
+    const loyaltyEnabled = true
+    const vitrineEnabled = true
+    const reservationsOn = shouldShowReservationsBlock(true)
+    expect(loyaltyEnabled && reservationsOn).toBe(true)
+    expect(vitrineEnabled && reservationsOn).toBe(true)
+  })
+})
+
+describe("startReservationsPoll", () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it("clears the timer on unmount", () => {
+    vi.useFakeTimers()
+    const tick = vi.fn()
+    const stop = startReservationsPoll(tick, 30_000)
+    vi.advanceTimersByTime(30_000)
+    expect(tick).toHaveBeenCalledTimes(1)
+    stop()
+    vi.advanceTimersByTime(60_000)
+    expect(tick).toHaveBeenCalledTimes(1)
+  })
+
+  it("does not poll when the tab is hidden", () => {
+    expect(
+      shouldPollReservations({
+        moduleEnabled: true,
+        documentVisible: false,
+        sessionActive: true,
+      }),
+    ).toBe(false)
+  })
+})
+
+describe("postThenRefetch", () => {
+  it("uses GET items after POST, not the POST body", async () => {
+    const postBody = { id: "1", status: "confirmed" }
+    const getItems = [{ id: "1", status: "confirmed", source: "get" }]
+    const list = await postThenRefetch({
+      post: async () => postBody,
+      refetch: async () => getItems,
+    })
+    expect(list).toBe(getItems)
+    expect(list).not.toEqual(postBody)
+  })
+})
+
+describe("mapReservationList", () => {
+  it("sorts items and reads summary", () => {
+    const mapped = mapReservationList({
+      date: "2026-09-17",
+      timezone: "America/Sao_Paulo",
+      module_enabled: true,
+      unmarked_count: 1,
+      summary: {
+        reservations_count: 2,
+        people_count: 5,
+        peak_local_time: "20:30",
+        cadeiroes_count: 0,
+        carrinhos_count: 0,
+      },
+      items: [
+        {
+          id: "b",
+          status: "pending",
+          starts_at: "2026-09-17T23:30:00.000Z",
+          local_time: "20:30",
+          party_size: 2,
+          phone_canonical: "11999998888",
+        },
+        {
+          id: "a",
+          status: "confirmed",
+          starts_at: "2026-09-17T23:00:00.000Z",
+          local_time: "20:00",
+          party_size: 3,
+          unmarked: true,
+        },
+      ],
+    })
+    expect(mapped.items.map((item) => item.id)).toEqual(["a", "b"])
+    expect(formatSummaryLine(mapped.summary)).toContain("maior entrada 20h30")
+    expect(unmarkedBannerCopy(mapped.unmarked_count)).toContain("sem marcação")
+  })
+})
+
+describe("filterPreviewItems", () => {
+  it("fila is pending+confirmed only", () => {
+    const seated = {
+      ...PREVIEW_RESERVATIONS.items[0],
+      id: "seated",
+      status: "seated",
+    }
+    const filtered = filterPreviewItems(
+      [...PREVIEW_RESERVATIONS.items, seated],
+      "fila",
+    )
+    expect(filtered.every((item) => item.status !== "seated")).toBe(true)
+  })
+})
+
+describe("parseApiErrorDetail", () => {
+  it("keeps 409 capacity code and message", async () => {
+    const response = new Response(
+      JSON.stringify({
+        detail: {
+          code: "RESERVA_CAPACITY",
+          message: "Não há vaga neste horário.",
+        },
+      }),
+      { status: 409, headers: { "content-type": "application/json" } },
+    )
+    await expect(parseApiErrorDetail(response)).resolves.toEqual({
+      code: "RESERVA_CAPACITY",
+      message: "Não há vaga neste horário.",
+    })
+    const again = new Response(
+      JSON.stringify({
+        detail: {
+          code: "RESERVA_CAPACITY",
+          message: "Não há vaga neste horário.",
+        },
+      }),
+      { status: 409, headers: { "content-type": "application/json" } },
+    )
+    await expect(parseApiError(again)).resolves.toBe("Não há vaga neste horário.")
+  })
+})

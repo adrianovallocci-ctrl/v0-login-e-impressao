@@ -1,0 +1,380 @@
+export type CaixaReservationSummary = {
+  reservations_count: number
+  people_count: number
+  peak_local_time: string | null
+  cadeiroes_count: number
+  carrinhos_count: number
+}
+
+export type CaixaReservationItem = {
+  id: string
+  company_id: string
+  environment_id: string
+  environment_nome: string | null
+  status: string
+  origin: string
+  starts_at: string
+  ends_at: string
+  local_time: string
+  party_size: number
+  objetivo: string | null
+  observacoes: string | null
+  requer_acessibilidade: boolean
+  cadeiroes_qtd: number
+  espaco_carrinho: boolean
+  phone_canonical: string | null
+  guest_name: string | null
+  tolerancia_min: number
+  capacity_available: boolean | null
+  unmarked: boolean
+  reason: string | null
+  decline_note: string | null
+  cancel_reason: string | null
+  cancelled_by: string | null
+}
+
+export type CaixaReservationListResponse = {
+  date: string
+  timezone: string
+  module_enabled: boolean
+  summary: CaixaReservationSummary
+  unmarked_count: number
+  items: CaixaReservationItem[]
+}
+
+export type ReservationFilter = "fila" | "pending" | "confirmed"
+
+export type ReservationAction = "confirm" | "decline" | "cancel" | "seat" | "no_show"
+
+export const ACTION_LABELS: Record<ReservationAction, string> = {
+  confirm: "Confirmar mesa",
+  decline: "Recusar pedido",
+  cancel: "Cancelar (loja)",
+  seat: "Cliente chegou",
+  no_show: "Não compareceu",
+}
+
+export const RESERVATIONS_POLL_MS = 30_000
+
+export function shouldShowReservationsBlock(
+  moduleEnabled: boolean | null | undefined,
+): boolean {
+  return moduleEnabled === true
+}
+
+export function shouldPollReservations(opts: {
+  moduleEnabled: boolean
+  documentVisible: boolean
+  sessionActive: boolean
+}): boolean {
+  return opts.moduleEnabled && opts.documentVisible && opts.sessionActive
+}
+
+export function startReservationsPoll(
+  onTick: () => void,
+  intervalMs = RESERVATIONS_POLL_MS,
+): () => void {
+  const id = setInterval(onTick, intervalMs)
+  return () => clearInterval(id)
+}
+
+export async function postThenRefetch<T>(opts: {
+  post: () => Promise<unknown>
+  refetch: () => Promise<T>
+}): Promise<T> {
+  await opts.post()
+  return opts.refetch()
+}
+
+export function actionsForStatus(status: string): ReservationAction[] {
+  if (status === "pending") return ["confirm", "decline", "cancel"]
+  if (status === "confirmed") return ["seat", "no_show", "cancel"]
+  return []
+}
+
+export function sortReservationsByStartsAt(
+  items: CaixaReservationItem[],
+): CaixaReservationItem[] {
+  return [...items].sort((a, b) => a.starts_at.localeCompare(b.starts_at))
+}
+
+export function formatPeakLocalTime(peak: string | null | undefined): string | null {
+  if (!peak) return null
+  const match = peak.match(/^(\d{1,2}):(\d{2})/)
+  if (!match) return null
+  return `${match[1].padStart(2, "0")}h${match[2]}`
+}
+
+export function formatSummaryLine(summary: CaixaReservationSummary): string {
+  const n = summary.reservations_count
+  const p = summary.people_count
+  const peak = formatPeakLocalTime(summary.peak_local_time)
+  const parts = [
+    `Hoje: ${n} ${n === 1 ? "reserva" : "reservas"}`,
+    `${p} ${p === 1 ? "pessoa" : "pessoas"}`,
+  ]
+  if (peak) parts.push(`maior entrada ${peak}`)
+  const c = summary.cadeiroes_count
+  const k = summary.carrinhos_count
+  parts.push(`${c} ${c === 1 ? "cadeirão" : "cadeirões"}`)
+  parts.push(`${k} ${k === 1 ? "carrinho" : "carrinhos"}`)
+  return parts.join(" · ")
+}
+
+export function unmarkedBannerCopy(count: number): string | null {
+  if (count <= 0) return null
+  return count === 1
+    ? "1 reserva de hoje sem marcação"
+    : `${count} reservas de hoje sem marcação`
+}
+
+export function capacityLabel(
+  status: string,
+  available: boolean | null,
+): string | null {
+  if (status !== "pending" || available == null) return null
+  return available ? "Horário com vaga" : "Horário sem vaga"
+}
+
+export function listPhoneMask(phone: string | null | undefined): string | null {
+  if (!phone) return null
+  const digits = phone.replace(/\D/g, "")
+  if (digits.length < 4) return "····"
+  return `····${digits.slice(-4)}`
+}
+
+export function digitsOnly(value: string | null | undefined): string {
+  return (value ?? "").replace(/\D/g, "")
+}
+
+export function formatReservationListLine(item: CaixaReservationItem): string {
+  const people =
+    item.party_size === 1 ? "1 pessoa" : `${item.party_size} pessoas`
+  const env = item.environment_nome?.trim() || "Ambiente"
+  const parts = [item.local_time, people, env]
+  const mask = listPhoneMask(item.phone_canonical)
+  if (mask) parts.push(mask)
+  if (item.requer_acessibilidade) parts.push("acessível")
+  if (item.cadeiroes_qtd > 0) {
+    parts.push(
+      item.cadeiroes_qtd === 1
+        ? "1 cadeirão"
+        : `${item.cadeiroes_qtd} cadeirões`,
+    )
+  }
+  if (item.espaco_carrinho) parts.push("carrinho")
+  return parts.join(" · ")
+}
+
+export function listLineExposesFullPhone(
+  item: CaixaReservationItem,
+  line: string,
+): boolean {
+  const phone = item.phone_canonical
+  if (!phone) return false
+  const digits = digitsOnly(phone)
+  if (digits.length >= 8 && line.includes(digits)) return true
+  if (phone.length >= 8 && line.includes(phone)) return true
+  return false
+}
+
+export function statusQuery(filter: ReservationFilter): string {
+  if (filter === "pending") return "status=pending"
+  if (filter === "confirmed") return "status=confirmed"
+  return ""
+}
+
+export function mapReservationItem(
+  raw: Record<string, unknown>,
+): CaixaReservationItem | null {
+  const id = String(raw.id ?? "")
+  if (!id) return null
+  return {
+    id,
+    company_id: String(raw.company_id ?? raw.companyId ?? ""),
+    environment_id: String(raw.environment_id ?? raw.environmentId ?? ""),
+    environment_nome: (raw.environment_nome ??
+      raw.environmentNome ??
+      null) as string | null,
+    status: String(raw.status ?? ""),
+    origin: String(raw.origin ?? ""),
+    starts_at: String(raw.starts_at ?? raw.startsAt ?? ""),
+    ends_at: String(raw.ends_at ?? raw.endsAt ?? ""),
+    local_time: String(raw.local_time ?? raw.localTime ?? ""),
+    party_size: Number(raw.party_size ?? raw.partySize ?? 0),
+    objetivo: (raw.objetivo ?? null) as string | null,
+    observacoes: (raw.observacoes ?? null) as string | null,
+    requer_acessibilidade: Boolean(
+      raw.requer_acessibilidade ?? raw.requerAcessibilidade ?? false,
+    ),
+    cadeiroes_qtd: Number(raw.cadeiroes_qtd ?? raw.cadeiroesQtd ?? 0),
+    espaco_carrinho: Boolean(raw.espaco_carrinho ?? raw.espacoCarrinho ?? false),
+    phone_canonical: (raw.phone_canonical ??
+      raw.phoneCanonical ??
+      null) as string | null,
+    guest_name: (raw.guest_name ?? raw.guestName ?? null) as string | null,
+    tolerancia_min: Number(raw.tolerancia_min ?? raw.toleranciaMin ?? 0),
+    capacity_available:
+      raw.capacity_available === undefined &&
+      raw.capacityAvailable === undefined
+        ? null
+        : raw.capacity_available != null
+          ? Boolean(raw.capacity_available)
+          : raw.capacityAvailable != null
+            ? Boolean(raw.capacityAvailable)
+            : null,
+    unmarked: Boolean(raw.unmarked ?? false),
+    reason: (raw.reason ?? null) as string | null,
+    decline_note: (raw.decline_note ?? raw.declineNote ?? null) as string | null,
+    cancel_reason: (raw.cancel_reason ??
+      raw.cancelReason ??
+      null) as string | null,
+    cancelled_by: (raw.cancelled_by ??
+      raw.cancelledBy ??
+      null) as string | null,
+  }
+}
+
+export function mapReservationList(
+  raw: Record<string, unknown>,
+): CaixaReservationListResponse {
+  const summaryRaw = (raw.summary ?? {}) as Record<string, unknown>
+  const rows = Array.isArray(raw.items) ? raw.items : []
+  return {
+    date: String(raw.date ?? ""),
+    timezone: String(raw.timezone ?? ""),
+    module_enabled: Boolean(
+      raw.module_enabled ?? raw.moduleEnabled ?? false,
+    ),
+    summary: {
+      reservations_count: Number(
+        summaryRaw.reservations_count ?? summaryRaw.reservationsCount ?? 0,
+      ),
+      people_count: Number(
+        summaryRaw.people_count ?? summaryRaw.peopleCount ?? 0,
+      ),
+      peak_local_time: (summaryRaw.peak_local_time ??
+        summaryRaw.peakLocalTime ??
+        null) as string | null,
+      cadeiroes_count: Number(
+        summaryRaw.cadeiroes_count ?? summaryRaw.cadeiroesCount ?? 0,
+      ),
+      carrinhos_count: Number(
+        summaryRaw.carrinhos_count ?? summaryRaw.carrinhosCount ?? 0,
+      ),
+    },
+    unmarked_count: Number(raw.unmarked_count ?? raw.unmarkedCount ?? 0),
+    items: sortReservationsByStartsAt(
+      rows
+        .map((row) => mapReservationItem(row as Record<string, unknown>))
+        .filter((row): row is CaixaReservationItem => row != null),
+    ),
+  }
+}
+
+export function filterPreviewItems(
+  items: CaixaReservationItem[],
+  filter: ReservationFilter,
+): CaixaReservationItem[] {
+  if (filter === "pending") return items.filter((item) => item.status === "pending")
+  if (filter === "confirmed") {
+    return items.filter((item) => item.status === "confirmed")
+  }
+  return items.filter(
+    (item) => item.status === "pending" || item.status === "confirmed",
+  )
+}
+
+export const PREVIEW_RESERVATIONS: CaixaReservationListResponse = {
+  date: "2026-09-17",
+  timezone: "America/Sao_Paulo",
+  module_enabled: true,
+  unmarked_count: 1,
+  summary: {
+    reservations_count: 3,
+    people_count: 8,
+    peak_local_time: "20:30",
+    cadeiroes_count: 1,
+    carrinhos_count: 1,
+  },
+  items: [
+    {
+      id: "preview-pending-vaga",
+      company_id: "preview",
+      environment_id: "salao",
+      environment_nome: "Salão",
+      status: "pending",
+      origin: "app",
+      starts_at: "2026-09-17T23:00:00.000Z",
+      ends_at: "2026-09-18T00:30:00.000Z",
+      local_time: "20:00",
+      party_size: 2,
+      objetivo: "jantar",
+      observacoes: null,
+      requer_acessibilidade: false,
+      cadeiroes_qtd: 0,
+      espaco_carrinho: false,
+      phone_canonical: "11987654321",
+      guest_name: "Maria Silva",
+      tolerancia_min: 15,
+      capacity_available: true,
+      unmarked: false,
+      reason: null,
+      decline_note: null,
+      cancel_reason: null,
+      cancelled_by: null,
+    },
+    {
+      id: "preview-pending-lotado",
+      company_id: "preview",
+      environment_id: "salao",
+      environment_nome: "Salão",
+      status: "pending",
+      origin: "app",
+      starts_at: "2026-09-17T23:30:00.000Z",
+      ends_at: "2026-09-18T01:00:00.000Z",
+      local_time: "20:30",
+      party_size: 4,
+      objetivo: "aniversário",
+      observacoes: "Mesa perto da janela, se possível.",
+      requer_acessibilidade: true,
+      cadeiroes_qtd: 1,
+      espaco_carrinho: false,
+      phone_canonical: "11991234567",
+      guest_name: "Carlos Souza",
+      tolerancia_min: 15,
+      capacity_available: false,
+      unmarked: false,
+      reason: null,
+      decline_note: null,
+      cancel_reason: null,
+      cancelled_by: null,
+    },
+    {
+      id: "preview-confirmed-unmarked",
+      company_id: "preview",
+      environment_id: "varanda",
+      environment_nome: "Varanda",
+      status: "confirmed",
+      origin: "app",
+      starts_at: "2026-09-17T22:00:00.000Z",
+      ends_at: "2026-09-17T23:30:00.000Z",
+      local_time: "19:00",
+      party_size: 2,
+      objetivo: null,
+      observacoes: null,
+      requer_acessibilidade: false,
+      cadeiroes_qtd: 0,
+      espaco_carrinho: true,
+      phone_canonical: "21999887766",
+      guest_name: "Ana Lima",
+      tolerancia_min: 15,
+      capacity_available: null,
+      unmarked: true,
+      reason: null,
+      decline_note: null,
+      cancel_reason: null,
+      cancelled_by: null,
+    },
+  ],
+}

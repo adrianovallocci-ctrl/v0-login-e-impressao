@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 
 import { useAuth } from "@/components/caixa/auth-provider"
+import { ReservationsBlock } from "@/components/caixa/reservations-block"
 import {
   formatElapsed,
   formatRewardWhen,
@@ -599,6 +600,8 @@ export function DashboardScreen({
             </section>
           ) : null}
         </div>
+
+        <ReservationsBlock />
       </main>
     </div>
   )

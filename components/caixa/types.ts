@@ -47,19 +47,37 @@ export function readCapability(
   return false
 }
 
-export async function parseApiError(response: Response): Promise<string | null> {
+export type ApiErrorDetail = {
+  code: string | null
+  message: string | null
+}
+
+export async function parseApiErrorDetail(
+  response: Response,
+): Promise<ApiErrorDetail> {
   try {
     const body = await response.clone().json()
     const detail = body.detail ?? body
-    if (typeof detail === "string") return detail
+    if (typeof detail === "string") {
+      return { code: null, message: detail }
+    }
     if (detail && typeof detail === "object") {
+      const code = (detail as { code?: string }).code
       const message = (detail as { message?: string }).message
-      if (typeof message === "string" && message.trim()) return message
+      return {
+        code: typeof code === "string" && code.trim() ? code : null,
+        message:
+          typeof message === "string" && message.trim() ? message : null,
+      }
     }
   } catch {
     /* ignore */
   }
-  return null
+  return { code: null, message: null }
+}
+
+export async function parseApiError(response: Response): Promise<string | null> {
+  return (await parseApiErrorDetail(response)).message
 }
 
 export function formatElapsed(ms: number): string {
