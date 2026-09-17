@@ -3,13 +3,19 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { parseApiError, parseApiErrorDetail } from "@/components/caixa/types"
 import {
   actionsForStatus,
+  caixaHomeLayoutClass,
   capacityLabel,
+  dayReservationsQuery,
   filterPreviewItems,
   formatReservationListLine,
+  formatReservationWhen,
   formatSummaryLine,
   listLineExposesFullPhone,
   listPhoneMask,
+  mapReservationInbox,
   mapReservationList,
+  pendingFutureBannerCopy,
+  PREVIEW_INBOX,
   PREVIEW_RESERVATIONS,
   postThenRefetch,
   shouldPollReservations,
@@ -109,6 +115,30 @@ describe("print cards stay independent", () => {
     expect(loyaltyEnabled && reservationsOn).toBe(true)
     expect(vitrineEnabled && reservationsOn).toBe(true)
   })
+
+  it("uses 3 columns when all modules are on, 2 when reservas is off", () => {
+    expect(
+      caixaHomeLayoutClass({
+        loyalty: true,
+        vitrine: true,
+        reservations: true,
+      }),
+    ).toContain("lg:grid-cols-3")
+    expect(
+      caixaHomeLayoutClass({
+        loyalty: true,
+        vitrine: true,
+        reservations: false,
+      }),
+    ).toContain("lg:grid-cols-2")
+    expect(
+      caixaHomeLayoutClass({
+        loyalty: true,
+        vitrine: true,
+        reservations: false,
+      }),
+    ).not.toContain("lg:grid-cols-3")
+  })
 })
 
 describe("startReservationsPoll", () => {
@@ -170,6 +200,7 @@ describe("mapReservationList", () => {
           id: "b",
           status: "pending",
           starts_at: "2026-09-17T23:30:00.000Z",
+          local_date: "2026-09-17",
           local_time: "20:30",
           party_size: 2,
           phone_canonical: "11999998888",
@@ -178,6 +209,7 @@ describe("mapReservationList", () => {
           id: "a",
           status: "confirmed",
           starts_at: "2026-09-17T23:00:00.000Z",
+          local_date: "2026-09-17",
           local_time: "20:00",
           party_size: 3,
           unmarked: true,
@@ -185,8 +217,99 @@ describe("mapReservationList", () => {
       ],
     })
     expect(mapped.items.map((item) => item.id)).toEqual(["a", "b"])
+    expect(mapped.items[0].local_date).toBe("2026-09-17")
     expect(formatSummaryLine(mapped.summary)).toContain("maior entrada 20h30")
     expect(unmarkedBannerCopy(mapped.unmarked_count)).toContain("sem marcação")
+  })
+})
+
+describe("mapReservationInbox", () => {
+  it("does not treat summary as the inbox source", () => {
+    const inbox = mapReservationInbox({
+      timezone: "America/Sao_Paulo",
+      module_enabled: true,
+      pending_future_count: 1,
+      summary: { people_count: 34, reservations_count: 12 },
+      date: "2026-09-17",
+      items: [
+        {
+          id: "tomorrow",
+          status: "pending",
+          starts_at: "2026-09-18T23:00:00.000Z",
+          local_date: "2026-09-18",
+          local_time: "20:00",
+          party_size: 4,
+        },
+      ],
+    })
+    expect(inbox.pending_future_count).toBe(1)
+    expect(inbox.items).toHaveLength(1)
+    expect(inbox.items[0].local_date).toBe("2026-09-18")
+    expect("summary" in inbox).toBe(false)
+    expect("date" in inbox).toBe(false)
+  })
+})
+
+describe("pendingFutureBannerCopy", () => {
+  it("hides when empty", () => {
+    expect(pendingFutureBannerCopy(0)).toBeNull()
+  })
+
+  it("does not say pico or mix with the day summary", () => {
+    expect(pendingFutureBannerCopy(2)).toBe("2 pedidos futuros sem resposta")
+  })
+})
+
+describe("formatReservationWhen", () => {
+  const today = "2026-09-17"
+
+  it("uses Amanhã within 48h and absolute date afterwards", () => {
+    expect(
+      formatReservationWhen(
+        { local_date: "2026-09-18", local_time: "20:00" },
+        today,
+      ),
+    ).toBe("Amanhã 20:00")
+    const far = formatReservationWhen(
+      { local_date: "2026-05-10", local_time: "20:00" },
+      today,
+    )
+    expect(far).toContain("20:00")
+    expect(far.toLowerCase()).not.toContain("amanhã")
+    expect(far).toMatch(/mai/i)
+  })
+})
+
+describe("dayReservationsQuery", () => {
+  it("omits date for today and never uses inbox= on the day GET", () => {
+    expect(
+      dayReservationsQuery({
+        date: null,
+        today: "2026-09-17",
+        filter: "fila",
+      }),
+    ).toBe("")
+    expect(
+      dayReservationsQuery({
+        date: "2026-09-17",
+        today: "2026-09-17",
+        filter: "pending",
+      }),
+    ).toBe("?status=pending")
+    expect(
+      dayReservationsQuery({
+        date: "2026-09-18",
+        today: "2026-09-17",
+        filter: "fila",
+      }),
+    ).toBe("?date=2026-09-18")
+  })
+})
+
+describe("preview inbox stays out of the day list", () => {
+  it("does not merge tomorrow into today's items", () => {
+    const todayIds = new Set(PREVIEW_RESERVATIONS.items.map((item) => item.id))
+    expect(todayIds.has(PREVIEW_INBOX.items[0].id)).toBe(false)
   })
 })
 

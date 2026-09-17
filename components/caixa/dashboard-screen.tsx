@@ -7,6 +7,7 @@ import { toast } from "sonner"
 
 import { useAuth } from "@/components/caixa/auth-provider"
 import { ReservationsBlock } from "@/components/caixa/reservations-block"
+import { caixaHomeLayoutClass } from "@/components/caixa/reservations"
 import {
   formatElapsed,
   formatRewardWhen,
@@ -71,10 +72,16 @@ export function DashboardScreen({
   const [elapsedMs, setElapsedMs] = useState(0)
   const [timerActive, setTimerActive] = useState(false)
   const [expiresInMs, setExpiresInMs] = useState(0)
+  const [reservationsVisible, setReservationsVisible] = useState(false)
 
   const loyaltyEnabled = establishment?.loyaltyCheckinEnabled ?? false
   const vitrineEnabled = establishment?.vitrineCouponEnabled ?? false
   const busy = checkinLoading || vitrineLoading || reprintingId != null
+  const homeLayoutClass = caixaHomeLayoutClass({
+    loyalty: loyaltyEnabled,
+    vitrine: vitrineEnabled,
+    reservations: reservationsVisible,
+  })
 
   const loadRewards = useCallback(async () => {
     if (!loyaltyEnabled) return
@@ -360,14 +367,8 @@ export function DashboardScreen({
         </div>
       ) : null}
 
-      <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-6 p-4">
-        <div
-          className={
-            loyaltyEnabled && vitrineEnabled
-              ? "grid grid-cols-1 items-stretch gap-6 lg:grid-cols-2"
-              : "mx-auto flex w-full max-w-md flex-col gap-6"
-          }
-        >
+      <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 p-4">
+        <div className={homeLayoutClass}>
           {loyaltyEnabled ? (
             <section className="flex h-full flex-col overflow-hidden rounded-xl border bg-card shadow-sm">
               <div className="aspect-[2.4/1] bg-[#0B3D91]">
@@ -599,9 +600,9 @@ export function DashboardScreen({
               </div>
             </section>
           ) : null}
-        </div>
 
-        <ReservationsBlock />
+          <ReservationsBlock onVisibilityChange={setReservationsVisible} />
+        </div>
       </main>
     </div>
   )
