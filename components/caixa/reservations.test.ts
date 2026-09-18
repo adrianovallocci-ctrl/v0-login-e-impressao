@@ -13,6 +13,7 @@ import {
   formatReservationListLine,
   formatReservationWhen,
   formatSummaryLine,
+  formatDestructiveReservationSummary,
   listLineExposesFullPhone,
   listPhoneMask,
   listWhatsAppHref,
@@ -144,6 +145,14 @@ describe("resolveCaixaActionIntent", () => {
     local_date: "2026-09-18",
     capacity_available: true,
   }
+  const todayPendingOpen = {
+    local_date: "2026-09-18",
+    capacity_available: true,
+  }
+  const todayPendingFull = {
+    local_date: "2026-09-18",
+    capacity_available: false,
+  }
 
   it("does not dispatch seat or no-show when the reservation is not store-today", () => {
     expect(
@@ -154,11 +163,22 @@ describe("resolveCaixaActionIntent", () => {
     ).toBe("block")
     expect(
       resolveCaixaActionIntent(future, "cancel", "America/Sao_Paulo", now),
-    ).toBe("post")
+    ).toBe("cancel")
     expect(PRESENCE_BLOCKED_TOAST).toBe("Disponível no dia da reserva.")
   })
 
-  it("still posts seat on the store civil day", () => {
+  it("opens dialogs for cancel and same-day no-show, and posts seat", () => {
+    expect(
+      resolveCaixaActionIntent(future, "cancel", "America/Sao_Paulo", now),
+    ).toBe("cancel")
+    expect(
+      resolveCaixaActionIntent(
+        todayConfirmed,
+        "no_show",
+        "America/Sao_Paulo",
+        now,
+      ),
+    ).toBe("no_show")
     expect(
       resolveCaixaActionIntent(
         todayConfirmed,
@@ -167,6 +187,38 @@ describe("resolveCaixaActionIntent", () => {
         now,
       ),
     ).toBe("post")
+    expect(
+      resolveCaixaActionIntent(
+        todayPendingOpen,
+        "confirm",
+        "America/Sao_Paulo",
+        now,
+      ),
+    ).toBe("post")
+    expect(
+      resolveCaixaActionIntent(
+        todayPendingFull,
+        "confirm",
+        "America/Sao_Paulo",
+        now,
+      ),
+    ).toBe("confirm_without_vacancy")
+  })
+})
+
+describe("formatDestructiveReservationSummary", () => {
+  it("uses absolute civil date and omits the phone mask", () => {
+    const line = formatDestructiveReservationSummary({
+      guest_name: "Lucas",
+      local_date: "2026-09-19",
+      local_time: "18:30",
+      party_size: 2,
+      environment_nome: "Piso superior",
+    })
+    expect(line).toBe(
+      "Lucas · sáb., 19 de set. 18:30 · 2 pessoas · Piso superior",
+    )
+    expect(line).not.toContain("····")
   })
 })
 
