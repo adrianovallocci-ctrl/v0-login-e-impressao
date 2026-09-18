@@ -4,20 +4,35 @@ import { parseApiError, parseApiErrorDetail } from "@/components/caixa/types"
 import {
   actionsForStatus,
   caixaHomeLayoutClass,
+  canMarkPresence,
   capacityLabel,
+  civilTodayInTimeZone,
   dayReservationsQuery,
+  filaChipLabel,
   filterPreviewItems,
   formatReservationListLine,
   formatReservationWhen,
   formatSummaryLine,
   listLineExposesFullPhone,
   listPhoneMask,
+  listCallHref,
   mapReservationInbox,
   mapReservationList,
   pendingFutureBannerCopy,
   PREVIEW_INBOX,
   PREVIEW_RESERVATIONS,
+  PRESENCE_BLOCKED_TOAST,
   postThenRefetch,
+  rememberStoreToday,
+  selectedDateFromPicker,
+  selectedDateFromShift,
+  liveStoreToday,
+  dateSelectorValue,
+  parseOptionalInt,
+  mapReservationItem,
+  resolveCaixaActionIntent,
+  shiftPreviewInboxToDate,
+  shiftPreviewReservationsToDate,
   shouldPollReservations,
   shouldShowReservationsBlock,
   sortReservationsByStartsAt,
@@ -73,29 +88,101 @@ describe("capacityLabel", () => {
 })
 
 describe("actionsForStatus", () => {
-  it("matches the caixa action matrix", () => {
+  it("matches the caixa action matrix and fail-closes presence", () => {
     expect(actionsForStatus("pending")).toEqual([
       "confirm",
       "decline",
       "cancel",
     ])
-    expect(actionsForStatus("confirmed")).toEqual([
-      "seat",
-      "no_show",
-      "cancel",
-    ])
+    expect(actionsForStatus("confirmed")).toEqual(["cancel"])
+    expect(
+      actionsForStatus("confirmed", { canMarkPresence: false }),
+    ).toEqual(["cancel"])
+    expect(
+      actionsForStatus("confirmed", { canMarkPresence: true }),
+    ).toEqual(["seat", "no_show", "cancel"])
     expect(actionsForStatus("seated")).toEqual([])
     expect(actionsForStatus("declined")).toEqual([])
   })
 })
 
+describe("canMarkPresence", () => {
+  it("follows the store timezone, not UTC calendar date", () => {
+    const almostMidnightUtc = new Date("2026-09-18T02:00:00.000Z")
+    expect(civilTodayInTimeZone("America/Sao_Paulo", almostMidnightUtc)).toBe(
+      "2026-09-17",
+    )
+    expect(
+      canMarkPresence("2026-09-17", "America/Sao_Paulo", almostMidnightUtc),
+    ).toBe(true)
+    expect(
+      canMarkPresence("2026-09-30", "America/Sao_Paulo", almostMidnightUtc),
+    ).toBe(false)
+  })
+
+  it("fail-closes when timezone is missing or invalid", () => {
+    const now = new Date("2026-09-18T15:00:00.000Z")
+    expect(civilTodayInTimeZone(null, now)).toBeNull()
+    expect(civilTodayInTimeZone(undefined, now)).toBeNull()
+    expect(civilTodayInTimeZone("", now)).toBeNull()
+    expect(civilTodayInTimeZone("Not/AZone", now)).toBeNull()
+    expect(canMarkPresence("2026-09-18", null, now)).toBe(false)
+    expect(canMarkPresence("2026-09-18", "Not/AZone", now)).toBe(false)
+  })
+})
+
+describe("resolveCaixaActionIntent", () => {
+  const now = new Date("2026-09-18T15:00:00.000Z")
+  const future = {
+    local_date: "2026-09-30",
+    capacity_available: true,
+  }
+  const todayConfirmed = {
+    local_date: "2026-09-18",
+    capacity_available: true,
+  }
+
+  it("does not dispatch seat or no-show when the reservation is not store-today", () => {
+    expect(
+      resolveCaixaActionIntent(future, "seat", "America/Sao_Paulo", now),
+    ).toBe("block")
+    expect(
+      resolveCaixaActionIntent(future, "no_show", "America/Sao_Paulo", now),
+    ).toBe("block")
+    expect(
+      resolveCaixaActionIntent(future, "cancel", "America/Sao_Paulo", now),
+    ).toBe("post")
+    expect(PRESENCE_BLOCKED_TOAST).toBe("Disponível no dia da reserva.")
+  })
+
+  it("still posts seat on the store civil day", () => {
+    expect(
+      resolveCaixaActionIntent(
+        todayConfirmed,
+        "seat",
+        "America/Sao_Paulo",
+        now,
+      ),
+    ).toBe("post")
+  })
+})
+
+describe("filaChipLabel", () => {
+  it("is Fila today and Todas do dia on another date", () => {
+    expect(filaChipLabel(true)).toBe("Fila")
+    expect(filaChipLabel(false)).toBe("Todas do dia")
+  })
+})
+
 describe("list phone", () => {
-  it("masks last 4 and never puts the full number on the list line", () => {
+  it("masks the visible line while the tel href still carries the full number", () => {
     const item = PREVIEW_RESERVATIONS.items[0]
     const line = formatReservationListLine(item)
     expect(listPhoneMask(item.phone_canonical)).toBe("····4321")
     expect(line).toContain("····4321")
     expect(listLineExposesFullPhone(item, line)).toBe(false)
+    expect(listCallHref(item)).toBe(`tel:${item.phone_canonical}`)
+    expect(item.phone_canonical).toBe("11987654321")
   })
 })
 
@@ -303,6 +390,67 @@ describe("dayReservationsQuery", () => {
         filter: "fila",
       }),
     ).toBe("?date=2026-09-18")
+    expect(
+      dayReservationsQuery({
+        date: "2026-09-30",
+        today: null,
+        filter: "fila",
+      }),
+    ).toBe("")
+  })
+})
+
+describe("rememberStoreToday", () => {
+  it("captures the first mapped date even if another day is already selected", () => {
+    expect(rememberStoreToday(null, "2026-09-18")).toBe("2026-09-18")
+    expect(rememberStoreToday("2026-09-18", "2026-09-30")).toBe("2026-09-18")
+    expect(rememberStoreToday(null, null)).toBeNull()
+  })
+})
+
+describe("date selector after midnight", () => {
+  it("follows hojeLoja even when storeToday stayed on yesterday", () => {
+    const storeToday = "2026-09-17"
+    const hojeLoja = "2026-09-18"
+    const live = liveStoreToday(hojeLoja, storeToday)
+    expect(dateSelectorValue(null, live)).toBe("2026-09-18")
+    expect(selectedDateFromPicker("2026-09-18", live)).toBeNull()
+    expect(selectedDateFromPicker("2026-09-17", live)).toBe("2026-09-17")
+    expect(selectedDateFromShift("2026-09-17", 1, live)).toBeNull()
+  })
+})
+
+describe("parseOptionalInt", () => {
+  it("does not fabricate 0 when tolerancia is missing", () => {
+    expect(parseOptionalInt(undefined)).toBeNull()
+    expect(parseOptionalInt("")).toBeNull()
+    expect(parseOptionalInt(15)).toBe(15)
+    expect(mapReservationItem({ id: "x" })?.tolerancia_min).toBeNull()
+    expect(
+      mapReservationItem({ id: "y", tolerancia_min: 15 })?.tolerancia_min,
+    ).toBe(15)
+  })
+})
+
+describe("shiftPreviewReservationsToDate", () => {
+  it("moves fixture dates to store-today so presence can show in preview", () => {
+    const today = "2026-09-18"
+    const now = new Date("2026-09-18T15:00:00.000Z")
+    const shifted = shiftPreviewReservationsToDate(PREVIEW_RESERVATIONS, today)
+    expect(shifted.date).toBe(today)
+    const confirmed = shifted.items.find((item) => item.status === "confirmed")
+    expect(confirmed?.local_date).toBe(today)
+    expect(
+      canMarkPresence(confirmed?.local_date, shifted.timezone, now),
+    ).toBe(true)
+    expect(actionsForStatus("confirmed", { canMarkPresence: true })).toEqual([
+      "seat",
+      "no_show",
+      "cancel",
+    ])
+    const days = 1
+    const inbox = shiftPreviewInboxToDate(PREVIEW_INBOX, days)
+    expect(inbox.items[0].local_date).toBe("2026-09-19")
   })
 })
 

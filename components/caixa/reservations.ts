@@ -25,7 +25,7 @@ export type CaixaReservationItem = {
   espaco_carrinho: boolean
   phone_canonical: string | null
   guest_name: string | null
-  tolerancia_min: number
+  tolerancia_min: number | null
   capacity_available: boolean | null
   unmarked: boolean
   reason: string | null
@@ -110,10 +110,79 @@ export async function postThenRefetch<T>(opts: {
   return opts.refetch()
 }
 
-export function actionsForStatus(status: string): ReservationAction[] {
+export const PRESENCE_BLOCKED_TOAST = "Disponível no dia da reserva."
+
+export function actionsForStatus(
+  status: string,
+  opts?: { canMarkPresence?: boolean },
+): ReservationAction[] {
   if (status === "pending") return ["confirm", "decline", "cancel"]
-  if (status === "confirmed") return ["seat", "no_show", "cancel"]
+  if (status === "confirmed") {
+    if (opts?.canMarkPresence !== true) return ["cancel"]
+    return ["seat", "no_show", "cancel"]
+  }
   return []
+}
+
+export function civilTodayInTimeZone(
+  timeZone: string | null | undefined,
+  now = new Date(),
+): string | null {
+  if (!timeZone) return null
+  try {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(now)
+    const year = parts.find((part) => part.type === "year")?.value
+    const month = parts.find((part) => part.type === "month")?.value
+    const day = parts.find((part) => part.type === "day")?.value
+    if (!year || !month || !day) return null
+    return `${year}-${month}-${day}`
+  } catch {
+    return null
+  }
+}
+
+export function canMarkPresence(
+  localDate: string | null | undefined,
+  timeZone: string | null | undefined,
+  now = new Date(),
+): boolean {
+  const today = civilTodayInTimeZone(timeZone, now)
+  if (!today || !localDate) return false
+  return localDate === today
+}
+
+export type CaixaActionIntent =
+  | "block"
+  | "confirm_without_vacancy"
+  | "decline"
+  | "post"
+
+export function resolveCaixaActionIntent(
+  item: Pick<CaixaReservationItem, "local_date" | "capacity_available">,
+  action: ReservationAction,
+  timeZone: string | null | undefined,
+  now = new Date(),
+): CaixaActionIntent {
+  if (
+    (action === "seat" || action === "no_show") &&
+    !canMarkPresence(item.local_date, timeZone, now)
+  ) {
+    return "block"
+  }
+  if (action === "confirm" && item.capacity_available === false) {
+    return "confirm_without_vacancy"
+  }
+  if (action === "decline") return "decline"
+  return "post"
+}
+
+export function filaChipLabel(isToday: boolean): string {
+  return isToday ? "Fila" : "Todas do dia"
 }
 
 export function sortReservationsByStartsAt(
@@ -173,6 +242,97 @@ export function daysBetweenCivil(fromIso: string, toIso: string): number | null 
   const to = civilDateFromParts(toIso)
   if (!from || !to) return null
   return Math.round((to.getTime() - from.getTime()) / 86_400_000)
+}
+
+export function rememberStoreToday(
+  current: string | null | undefined,
+  mappedDate: string | null | undefined,
+): string | null {
+  if (current) return current
+  if (mappedDate) return mappedDate
+  return null
+}
+
+export function liveStoreToday(
+  hojeLoja: string | null | undefined,
+  storeToday: string | null | undefined,
+): string | null {
+  return hojeLoja || storeToday || null
+}
+
+export function dateSelectorValue(
+  selectedDate: string | null,
+  liveToday: string | null,
+): string {
+  return selectedDate ?? liveToday ?? ""
+}
+
+export function selectedDateFromPicker(
+  next: string,
+  liveToday: string | null,
+): string | null {
+  if (!next) return null
+  return liveToday && next === liveToday ? null : next
+}
+
+export function selectedDateFromShift(
+  currentValue: string,
+  days: number,
+  liveToday: string | null,
+): string | null {
+  if (!currentValue) return liveToday
+  const shifted = shiftCivilDate(currentValue, days)
+  return liveToday && shifted === liveToday ? null : shifted
+}
+
+export function parseOptionalInt(raw: unknown): number | null {
+  if (typeof raw === "number" && Number.isInteger(raw)) return raw
+  if (typeof raw === "string" && raw.trim() !== "") {
+    const parsed = Number(raw)
+    if (Number.isInteger(parsed)) return parsed
+  }
+  return null
+}
+
+export function shiftIsoDateTimeByDays(iso: string, days: number): string {
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return iso
+  date.setUTCDate(date.getUTCDate() + days)
+  return date.toISOString()
+}
+
+export function shiftPreviewReservationsToDate(
+  payload: CaixaReservationListResponse,
+  today: string,
+): CaixaReservationListResponse {
+  const days = daysBetweenCivil(payload.date, today)
+  if (days == null || days === 0) return payload
+  return {
+    ...payload,
+    date: today,
+    items: payload.items.map((item) => ({
+      ...item,
+      local_date: shiftCivilDate(item.local_date, days),
+      starts_at: shiftIsoDateTimeByDays(item.starts_at, days),
+      ends_at: shiftIsoDateTimeByDays(item.ends_at, days),
+    })),
+  }
+}
+
+export function shiftPreviewInboxToDate(
+  inbox: CaixaReservationInboxResponse,
+  days: number,
+): CaixaReservationInboxResponse {
+  if (!days) return inbox
+  return {
+    ...inbox,
+    items: inbox.items.map((item) => ({
+      ...item,
+      local_date: shiftCivilDate(item.local_date, days),
+      starts_at: shiftIsoDateTimeByDays(item.starts_at, days),
+      ends_at: shiftIsoDateTimeByDays(item.ends_at, days),
+    })),
+  }
 }
 
 export function formatCivilDateShort(iso: string): string {
@@ -276,6 +436,12 @@ export function listLineExposesFullPhone(
   return false
 }
 
+export function listCallHref(
+  item: Pick<CaixaReservationItem, "phone_canonical">,
+): string | null {
+  return item.phone_canonical ? `tel:${item.phone_canonical}` : null
+}
+
 export function statusQuery(filter: ReservationFilter): string {
   if (filter === "pending") return "status=pending"
   if (filter === "confirmed") return "status=confirmed"
@@ -312,7 +478,9 @@ export function mapReservationItem(
       raw.phoneCanonical ??
       null) as string | null,
     guest_name: (raw.guest_name ?? raw.guestName ?? null) as string | null,
-    tolerancia_min: Number(raw.tolerancia_min ?? raw.toleranciaMin ?? 0),
+    tolerancia_min: parseOptionalInt(
+      raw.tolerancia_min ?? raw.toleranciaMin,
+    ),
     capacity_available:
       raw.capacity_available === undefined &&
       raw.capacityAvailable === undefined

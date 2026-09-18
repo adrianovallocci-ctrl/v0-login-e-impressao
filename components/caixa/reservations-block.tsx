@@ -9,19 +9,31 @@ import {
   ACTION_LABELS,
   PREVIEW_INBOX,
   PREVIEW_RESERVATIONS,
+  PRESENCE_BLOCKED_TOAST,
   actionsForStatus,
+  canMarkPresence,
   capacityLabel,
+  civilTodayInTimeZone,
   dayReservationsQuery,
+  daysBetweenCivil,
+  dateSelectorValue,
+  filaChipLabel,
   filterPreviewItems,
   formatCivilDateShort,
   formatReservationListLine,
   formatReservationWhen,
   formatSummaryLine,
+  liveStoreToday,
   mapReservationInbox,
   mapReservationList,
   pendingFutureBannerCopy,
   postThenRefetch,
-  shiftCivilDate,
+  rememberStoreToday,
+  resolveCaixaActionIntent,
+  selectedDateFromPicker,
+  selectedDateFromShift,
+  shiftPreviewInboxToDate,
+  shiftPreviewReservationsToDate,
   shouldPollReservations,
   shouldShowReservationsBlock,
   startReservationsPoll,
@@ -36,12 +48,6 @@ import { parseApiErrorDetail } from "@/components/caixa/types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 
-const FILTERS: { id: ReservationFilter; label: string }[] = [
-  { id: "fila", label: "Fila" },
-  { id: "pending", label: "Pendentes" },
-  { id: "confirmed", label: "Confirmadas" },
-]
-
 function statusBadge(status: string): { label: string; className: string } {
   if (status === "pending") {
     return { label: "Pendente", className: "bg-amber-100 text-amber-800" }
@@ -55,6 +61,7 @@ function statusBadge(status: string): { label: string; className: string } {
 function ReservationItemCard({
   item,
   todayIso,
+  timeZone,
   expanded,
   actionBusy,
   onToggle,
@@ -62,6 +69,7 @@ function ReservationItemCard({
 }: {
   item: CaixaReservationItem
   todayIso: string | null
+  timeZone: string | null
   expanded: boolean
   actionBusy: string | null
   onToggle: () => void
@@ -71,7 +79,9 @@ function ReservationItemCard({
   const vacancy = capacityLabel(item.status, item.capacity_available)
   const when = formatReservationWhen(item, todayIso)
   const line = formatReservationListLine(item, when)
-  const actions = actionsForStatus(item.status)
+  const actions = actionsForStatus(item.status, {
+    canMarkPresence: canMarkPresence(item.local_date, timeZone),
+  })
 
   return (
     <li className="rounded-md border bg-background px-3 py-3">
@@ -127,9 +137,11 @@ function ReservationItemCard({
           ) : null}
           {item.objetivo ? <p>Objetivo: {item.objetivo}</p> : null}
           {item.observacoes ? <p>Observações: {item.observacoes}</p> : null}
-          <p className="text-muted-foreground">
-            Tolerância: {item.tolerancia_min} min
-          </p>
+          {item.tolerancia_min != null ? (
+            <p className="text-muted-foreground">
+              Tolerância: {item.tolerancia_min} min
+            </p>
+          ) : null}
           {item.decline_note ? <p>Nota da recusa: {item.decline_note}</p> : null}
           {item.cancel_reason ? (
             <p>Cancelamento: {item.cancel_reason}</p>
@@ -191,18 +203,25 @@ export function ReservationsBlock({
   const [documentVisible, setDocumentVisible] = useState(true)
 
   const sessionActive = Boolean(token) || Boolean(preview)
+  const storeTz = payload?.timezone ?? inbox?.timezone ?? null
 
   const loadDay = useCallback(
     async (opts?: { silent?: boolean }) => {
       if (!sessionActive) return
 
       if (preview && !token) {
-        const today = PREVIEW_RESERVATIONS.date
+        const today =
+          civilTodayInTimeZone(PREVIEW_RESERVATIONS.timezone) ??
+          PREVIEW_RESERVATIONS.date
+        const previewDay = shiftPreviewReservationsToDate(
+          PREVIEW_RESERVATIONS,
+          today,
+        )
         setStoreToday(today)
-        const items = filterPreviewItems(PREVIEW_RESERVATIONS.items, filter)
+        const items = filterPreviewItems(previewDay.items, filter)
         const viewing = selectedDate ?? today
         setPayload({
-          ...PREVIEW_RESERVATIONS,
+          ...previewDay,
           date: viewing,
           items: viewing === today ? items : [],
         })
@@ -214,7 +233,10 @@ export function ReservationsBlock({
       try {
         const query = dayReservationsQuery({
           date: selectedDate,
-          today: storeToday,
+          today: liveStoreToday(
+            civilTodayInTimeZone(storeTz),
+            storeToday,
+          ),
           filter,
         })
         const response = await fetch(`/api/proxy/caixa/reservations${query}`, {
@@ -236,14 +258,14 @@ export function ReservationsBlock({
         const body = (await response.json()) as Record<string, unknown>
         const mapped = mapReservationList(body)
         setPayload(mapped)
-        if (!selectedDate && mapped.date) setStoreToday(mapped.date)
+        setStoreToday((current) => rememberStoreToday(current, mapped.date))
       } catch {
         toast.error("Falha de conexão ao carregar reservas.")
       } finally {
         if (!opts?.silent) setLoading(false)
       }
     },
-    [sessionActive, preview, token, filter, selectedDate, storeToday, clearToken],
+    [sessionActive, preview, token, filter, selectedDate, storeToday, storeTz, clearToken],
   )
 
   const loadInbox = useCallback(
@@ -251,7 +273,11 @@ export function ReservationsBlock({
       if (!sessionActive) return
 
       if (preview && !token) {
-        setInbox(PREVIEW_INBOX)
+        const today =
+          civilTodayInTimeZone(PREVIEW_RESERVATIONS.timezone) ??
+          PREVIEW_RESERVATIONS.date
+        const days = daysBetweenCivil(PREVIEW_RESERVATIONS.date, today) ?? 0
+        setInbox(shiftPreviewInboxToDate(PREVIEW_INBOX, days))
         return
       }
       if (!token) return
@@ -387,24 +413,36 @@ export function ReservationsBlock({
 
   const handleAction = useCallback(
     (item: CaixaReservationItem, action: ReservationAction) => {
-      if (action === "confirm" && item.capacity_available === false) {
+      const intent = resolveCaixaActionIntent(item, action, storeTz)
+      if (intent === "block") {
+        toast.info(PRESENCE_BLOCKED_TOAST)
+        return
+      }
+      if (intent === "confirm_without_vacancy") {
         setConfirmWithoutVacancy(item)
         return
       }
-      if (action === "decline") {
+      if (intent === "decline") {
         setDeclineNote("")
         setDeclineTarget(item)
         return
       }
       void postAction(item, action)
     },
-    [postAction],
+    [postAction, storeTz],
   )
 
   const items = payload?.items ?? []
   const inboxItems = inbox?.items ?? []
-  const viewingToday =
-    !selectedDate || (storeToday != null && selectedDate === storeToday)
+  const hojeLoja = civilTodayInTimeZone(storeTz)
+  const liveToday = liveStoreToday(hojeLoja, storeToday)
+  const viewingDate = selectedDate ?? payload?.date ?? liveToday
+  const viewingToday = Boolean(hojeLoja && viewingDate === hojeLoja)
+  const dayFilters: { id: ReservationFilter; label: string }[] = [
+    { id: "fila", label: filaChipLabel(viewingToday) },
+    { id: "pending", label: "Pendentes" },
+    { id: "confirmed", label: "Confirmadas" },
+  ]
   const summaryHeading = viewingToday
     ? "Hoje"
     : payload?.date
@@ -423,7 +461,7 @@ export function ReservationsBlock({
         : null
     : null
   const inboxCopy = pendingFutureBannerCopy(inbox?.pending_future_count ?? 0)
-  const dateValue = selectedDate ?? storeToday ?? ""
+  const dateValue = dateSelectorValue(selectedDate, liveToday)
 
   const visible = useMemo(
     () => shouldShowReservationsBlock(payload?.module_enabled),
@@ -485,7 +523,8 @@ export function ReservationsBlock({
               <ReservationItemCard
                 key={`inbox-${item.id}`}
                 item={item}
-                todayIso={storeToday}
+                todayIso={liveToday}
+                timeZone={storeTz}
                 expanded={expandedId === item.id}
                 actionBusy={actionBusy}
                 onToggle={() =>
@@ -515,7 +554,9 @@ export function ReservationsBlock({
             aria-label="Dia anterior"
             disabled={!dateValue}
             onClick={() =>
-              setSelectedDate(shiftCivilDate(dateValue, -1))
+              setSelectedDate(
+                selectedDateFromShift(dateValue, -1, liveToday),
+              )
             }
           >
             <ChevronLeft className="size-4" aria-hidden="true" />
@@ -530,9 +571,7 @@ export function ReservationsBlock({
                 setSelectedDate(null)
                 return
               }
-              setSelectedDate(
-                storeToday && next === storeToday ? null : next,
-              )
+              setSelectedDate(selectedDateFromPicker(next, liveToday))
             }}
             aria-label="Data da fila"
           />
@@ -543,7 +582,9 @@ export function ReservationsBlock({
             aria-label="Próximo dia"
             disabled={!dateValue}
             onClick={() =>
-              setSelectedDate(shiftCivilDate(dateValue, 1))
+              setSelectedDate(
+                selectedDateFromShift(dateValue, 1, liveToday),
+              )
             }
           >
             <ChevronRight className="size-4" aria-hidden="true" />
@@ -557,7 +598,7 @@ export function ReservationsBlock({
         ) : null}
 
         <div className="flex flex-wrap gap-2">
-          {FILTERS.map((chip) => (
+          {dayFilters.map((chip) => (
             <Button
               key={chip.id}
               type="button"
@@ -588,7 +629,8 @@ export function ReservationsBlock({
             <ReservationItemCard
               key={item.id}
               item={item}
-              todayIso={storeToday}
+              todayIso={liveToday}
+              timeZone={storeTz}
               expanded={expandedId === item.id}
               actionBusy={actionBusy}
               onToggle={() =>
