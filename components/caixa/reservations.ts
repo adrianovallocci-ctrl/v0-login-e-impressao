@@ -25,7 +25,7 @@ export type CaixaReservationItem = {
   espaco_carrinho: boolean
   phone_canonical: string | null
   guest_name: string | null
-  tolerancia_min: number
+  tolerancia_min: number | null
   capacity_available: boolean | null
   unmarked: boolean
   reason: string | null
@@ -253,6 +253,47 @@ export function rememberStoreToday(
   return null
 }
 
+export function liveStoreToday(
+  hojeLoja: string | null | undefined,
+  storeToday: string | null | undefined,
+): string | null {
+  return hojeLoja || storeToday || null
+}
+
+export function dateSelectorValue(
+  selectedDate: string | null,
+  liveToday: string | null,
+): string {
+  return selectedDate ?? liveToday ?? ""
+}
+
+export function selectedDateFromPicker(
+  next: string,
+  liveToday: string | null,
+): string | null {
+  if (!next) return null
+  return liveToday && next === liveToday ? null : next
+}
+
+export function selectedDateFromShift(
+  currentValue: string,
+  days: number,
+  liveToday: string | null,
+): string | null {
+  if (!currentValue) return liveToday
+  const shifted = shiftCivilDate(currentValue, days)
+  return liveToday && shifted === liveToday ? null : shifted
+}
+
+export function parseOptionalInt(raw: unknown): number | null {
+  if (typeof raw === "number" && Number.isInteger(raw)) return raw
+  if (typeof raw === "string" && raw.trim() !== "") {
+    const parsed = Number(raw)
+    if (Number.isInteger(parsed)) return parsed
+  }
+  return null
+}
+
 export function shiftIsoDateTimeByDays(iso: string, days: number): string {
   const date = new Date(iso)
   if (Number.isNaN(date.getTime())) return iso
@@ -437,7 +478,9 @@ export function mapReservationItem(
       raw.phoneCanonical ??
       null) as string | null,
     guest_name: (raw.guest_name ?? raw.guestName ?? null) as string | null,
-    tolerancia_min: Number(raw.tolerancia_min ?? raw.toleranciaMin ?? 0),
+    tolerancia_min: parseOptionalInt(
+      raw.tolerancia_min ?? raw.toleranciaMin,
+    ),
     capacity_available:
       raw.capacity_available === undefined &&
       raw.capacityAvailable === undefined

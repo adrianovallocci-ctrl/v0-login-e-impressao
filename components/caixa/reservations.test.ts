@@ -24,6 +24,12 @@ import {
   PRESENCE_BLOCKED_TOAST,
   postThenRefetch,
   rememberStoreToday,
+  selectedDateFromPicker,
+  selectedDateFromShift,
+  liveStoreToday,
+  dateSelectorValue,
+  parseOptionalInt,
+  mapReservationItem,
   resolveCaixaActionIntent,
   shiftPreviewInboxToDate,
   shiftPreviewReservationsToDate,
@@ -399,6 +405,30 @@ describe("rememberStoreToday", () => {
     expect(rememberStoreToday(null, "2026-09-18")).toBe("2026-09-18")
     expect(rememberStoreToday("2026-09-18", "2026-09-30")).toBe("2026-09-18")
     expect(rememberStoreToday(null, null)).toBeNull()
+  })
+})
+
+describe("date selector after midnight", () => {
+  it("follows hojeLoja even when storeToday stayed on yesterday", () => {
+    const storeToday = "2026-09-17"
+    const hojeLoja = "2026-09-18"
+    const live = liveStoreToday(hojeLoja, storeToday)
+    expect(dateSelectorValue(null, live)).toBe("2026-09-18")
+    expect(selectedDateFromPicker("2026-09-18", live)).toBeNull()
+    expect(selectedDateFromPicker("2026-09-17", live)).toBe("2026-09-17")
+    expect(selectedDateFromShift("2026-09-17", 1, live)).toBeNull()
+  })
+})
+
+describe("parseOptionalInt", () => {
+  it("does not fabricate 0 when tolerancia is missing", () => {
+    expect(parseOptionalInt(undefined)).toBeNull()
+    expect(parseOptionalInt("")).toBeNull()
+    expect(parseOptionalInt(15)).toBe(15)
+    expect(mapReservationItem({ id: "x" })?.tolerancia_min).toBeNull()
+    expect(
+      mapReservationItem({ id: "y", tolerancia_min: 15 })?.tolerancia_min,
+    ).toBe(15)
   })
 })
 
