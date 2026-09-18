@@ -615,6 +615,25 @@ export function ReservationsBlock({
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col gap-3 p-3">
+        <Button
+          type="button"
+          disabled={!canPrint || !dateValue}
+          onClick={() => void printReservationsDay()}
+          className="h-20 w-full bg-[#1B7A3A] text-lg text-white hover:bg-[#166432] focus-visible:ring-[#1B7A3A]"
+        >
+          {printDayBusy ? (
+            <>
+              <Loader2 className="size-5 animate-spin" aria-hidden="true" />
+              Enviando...
+            </>
+          ) : (
+            <>
+              <Printer className="size-6" aria-hidden="true" />
+              Imprimir resumo do dia
+            </>
+          )}
+        </Button>
+
         <div className="flex items-start justify-between gap-2">
           <div className="space-y-1">
             <h2 className="font-semibold">Reservas</h2>
@@ -716,20 +735,6 @@ export function ReservationsBlock({
             }
           >
             <ChevronRight className="size-4" aria-hidden="true" />
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            disabled={!canPrint || !dateValue}
-            onClick={() => void printReservationsDay()}
-          >
-            {printDayBusy ? (
-              <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-            ) : (
-              <Printer className="size-4" aria-hidden="true" />
-            )}
-            Imprimir resumo do dia
           </Button>
         </div>
 
