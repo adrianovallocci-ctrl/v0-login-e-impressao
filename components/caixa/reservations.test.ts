@@ -15,6 +15,7 @@ import {
   formatSummaryLine,
   listLineExposesFullPhone,
   listPhoneMask,
+  listWhatsAppHref,
   reservationWhatsAppHref,
   reservationWhatsAppMessage,
   whatsappE164Digits,
@@ -188,16 +189,22 @@ describe("list phone", () => {
       partySize: item.party_size,
       environmentNome: item.environment_nome,
     })
-    const href = reservationWhatsAppHref(item.phone_canonical, message)
+    const href = listWhatsAppHref(item, message)
     expect(listPhoneMask(item.phone_canonical)).toBe("····4321")
     expect(line).toContain("····4321")
     expect(listLineExposesFullPhone(item, line)).toBe(false)
-    expect(whatsappE164Digits(item.phone_canonical)).toBe("5511987654321")
     expect(href).toContain("https://wa.me/5511987654321?text=")
+    expect(href).toBe(reservationWhatsAppHref(item.phone_canonical, message))
     expect(item.phone_canonical).toBe("11987654321")
+  })
+})
+
+describe("whatsappE164Digits", () => {
+  it("accepts BR mobile and fail-closes landline or junk", () => {
     expect(whatsappE164Digits("1133334444")).toBeNull()
-    expect(whatsappE164Digits("551133334444")).toBeNull()
+    expect(whatsappE164Digits("11987654321")).toBe("5511987654321")
     expect(whatsappE164Digits("5511987654321")).toBe("5511987654321")
+    expect(whatsappE164Digits("not-a-phone")).toBeNull()
   })
 })
 
@@ -213,7 +220,7 @@ describe("reservationWhatsAppMessage", () => {
         environmentNome: "Piso superior",
       }),
     ).toBe(
-      "Olá, Lucas! Aqui é KiPizza. Sobre sua reserva de sáb., 19/09 às 18:30, para 2 pessoas, no Piso superior.",
+      "Oi, Lucas! É sobre sua reserva aqui — KiPizza — de sáb., 19/09 às 18:30, 2 pessoas, Piso superior.",
     )
   })
 })

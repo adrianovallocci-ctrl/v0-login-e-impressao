@@ -440,9 +440,7 @@ export function whatsappE164Digits(
   phone: string | null | undefined,
 ): string | null {
   const digits = digitsOnly(phone)
-  if (digits.startsWith("55") && digits.length === 13 && digits[4] === "9") {
-    return digits
-  }
+  if (digits.startsWith("55") && digits.length === 13) return digits
   if (digits.length === 11 && digits[2] === "9") return `55${digits}`
   return null
 }
@@ -458,6 +456,15 @@ export function formatWhatsAppReservationWhen(iso: string): string | null {
   return `${weekday}, ${dd}/${mm}`
 }
 
+/**
+ * `{loja}` and `{ambiente}` are gestor-typed strings. No article or
+ * preposition can agree with them ("o Pizzaria Bella", "no Área kids").
+ * Store name sits between dashes; environment follows a comma.
+ *
+ * The text is only about that reservation. No promo, coupon, or
+ * "aproveite e conheça". `phone_canonical` is onboarding identity
+ * (D13/D14), not marketing consent.
+ */
 export function reservationWhatsAppMessage(opts: {
   guestName?: string | null
   storeName?: string | null
@@ -473,14 +480,18 @@ export function reservationWhatsAppMessage(opts: {
   const people =
     opts.partySize === 1 ? "1 pessoa" : `${opts.partySize} pessoas`
   const env = opts.environmentNome?.trim()
-  const hello = name ? `Olá, ${name}!` : "Olá!"
-  const who = store ? ` Aqui é ${store}.` : ""
-  const datePart = [when, time ? `às ${time}` : null].filter(Boolean).join(" ")
-  const about = datePart
-    ? ` Sobre sua reserva de ${datePart}, para ${people}`
-    : ` Sobre sua reserva para ${people}`
-  const place = env ? `, no ${env}` : ""
-  return `${hello}${who}${about}${place}.`
+  const hello = name ? `Oi, ${name}!` : "Oi!"
+  const storeBit = store ? ` aqui — ${store} —` : " aqui"
+  const whenBit =
+    when && time
+      ? ` de ${when} às ${time}`
+      : when
+        ? ` de ${when}`
+        : time
+          ? ` às ${time}`
+          : ""
+  const rest = [people, env].filter(Boolean).join(", ")
+  return `${hello} É sobre sua reserva${storeBit}${whenBit}, ${rest}.`
 }
 
 export function reservationWhatsAppHref(
@@ -490,6 +501,13 @@ export function reservationWhatsAppHref(
   const e164 = whatsappE164Digits(phone)
   if (!e164) return null
   return `https://wa.me/${e164}?text=${encodeURIComponent(message)}`
+}
+
+export function listWhatsAppHref(
+  item: Pick<CaixaReservationItem, "phone_canonical">,
+  message: string,
+): string | null {
+  return reservationWhatsAppHref(item.phone_canonical, message)
 }
 
 export function statusQuery(filter: ReservationFilter): string {
