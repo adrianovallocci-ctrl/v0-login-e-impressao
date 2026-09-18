@@ -29,7 +29,7 @@ import {
   pendingFutureBannerCopy,
   postThenRefetch,
   rememberStoreToday,
-  reservationWhatsAppHref,
+  listWhatsAppHref,
   reservationWhatsAppMessage,
   resolveCaixaActionIntent,
   selectedDateFromPicker,
@@ -86,8 +86,8 @@ function ReservationItemCard({
   const actions = actionsForStatus(item.status, {
     canMarkPresence: canMarkPresence(item.local_date, timeZone),
   })
-  const waHref = reservationWhatsAppHref(
-    item.phone_canonical,
+  const waHref = listWhatsAppHref(
+    item,
     reservationWhatsAppMessage({
       guestName: item.guest_name,
       storeName,
