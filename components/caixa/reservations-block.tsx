@@ -23,8 +23,10 @@ import {
   filterPreviewItems,
   formatCivilDateShort,
   formatDestructiveReservationSummary,
-  formatReservationListLine,
+  formatReservationListExtras,
   formatReservationWhen,
+  listPhoneLine,
+  partySizeLabel,
   formatSummaryLine,
   liveStoreToday,
   mapReservationInbox,
@@ -126,7 +128,8 @@ function ReservationItemCard({
   const badge = statusBadge(item.status)
   const vacancy = capacityLabel(item.status, item.capacity_available)
   const when = formatReservationWhen(item, todayIso)
-  const line = formatReservationListLine(item, when)
+  const phoneLine = listPhoneLine(item.phone_canonical)
+  const extras = formatReservationListExtras(item)
   const actions = actionsForStatus(item.status, {
     canMarkPresence: canMarkPresence(item.local_date, timeZone),
   })
@@ -171,7 +174,18 @@ function ReservationItemCard({
         <p className="mt-2 text-sm font-medium">
           {item.guest_name?.trim() || "Cliente"}
         </p>
-        <p className="text-sm text-muted-foreground">{line}</p>
+        {phoneLine ? (
+          <p className="text-sm text-muted-foreground">{phoneLine}</p>
+        ) : null}
+        {when ? (
+          <p className="text-sm text-muted-foreground">{when}</p>
+        ) : null}
+        <p className="text-base font-semibold">
+          {partySizeLabel(item.party_size)}
+        </p>
+        {extras ? (
+          <p className="text-sm text-muted-foreground">{extras}</p>
+        ) : null}
       </button>
 
       {waHref ? (
