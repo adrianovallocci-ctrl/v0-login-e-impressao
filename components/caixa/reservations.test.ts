@@ -4,8 +4,11 @@ import { parseApiError, parseApiErrorDetail } from "@/components/caixa/types"
 import {
   actionsForStatus,
   caixaHomeLayoutClass,
+  canMarkPresence,
   capacityLabel,
+  civilTodayInTimeZone,
   dayReservationsQuery,
+  filaChipLabel,
   filterPreviewItems,
   formatReservationListLine,
   formatReservationWhen,
@@ -84,8 +87,33 @@ describe("actionsForStatus", () => {
       "no_show",
       "cancel",
     ])
+    expect(
+      actionsForStatus("confirmed", { canMarkPresence: false }),
+    ).toEqual(["cancel"])
     expect(actionsForStatus("seated")).toEqual([])
     expect(actionsForStatus("declined")).toEqual([])
+  })
+})
+
+describe("canMarkPresence", () => {
+  it("follows the store timezone, not UTC calendar date", () => {
+    const almostMidnightUtc = new Date("2026-09-18T02:00:00.000Z")
+    expect(civilTodayInTimeZone("America/Sao_Paulo", almostMidnightUtc)).toBe(
+      "2026-09-17",
+    )
+    expect(
+      canMarkPresence("2026-09-17", "America/Sao_Paulo", almostMidnightUtc),
+    ).toBe(true)
+    expect(
+      canMarkPresence("2026-09-30", "America/Sao_Paulo", almostMidnightUtc),
+    ).toBe(false)
+  })
+})
+
+describe("filaChipLabel", () => {
+  it("is Fila today and Todas do dia on another date", () => {
+    expect(filaChipLabel(true)).toBe("Fila")
+    expect(filaChipLabel(false)).toBe("Todas do dia")
   })
 })
 

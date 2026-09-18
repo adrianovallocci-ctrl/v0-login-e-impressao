@@ -110,10 +110,42 @@ export async function postThenRefetch<T>(opts: {
   return opts.refetch()
 }
 
-export function actionsForStatus(status: string): ReservationAction[] {
+export function actionsForStatus(
+  status: string,
+  opts?: { canMarkPresence?: boolean },
+): ReservationAction[] {
   if (status === "pending") return ["confirm", "decline", "cancel"]
-  if (status === "confirmed") return ["seat", "no_show", "cancel"]
+  if (status === "confirmed") {
+    if (opts?.canMarkPresence === false) return ["cancel"]
+    return ["seat", "no_show", "cancel"]
+  }
   return []
+}
+
+export function civilTodayInTimeZone(
+  timeZone: string | null | undefined,
+  now = new Date(),
+): string | null {
+  if (!timeZone) return null
+  try {
+    return new Intl.DateTimeFormat("en-CA", { timeZone }).format(now)
+  } catch {
+    return null
+  }
+}
+
+export function canMarkPresence(
+  localDate: string | null | undefined,
+  timeZone: string | null | undefined,
+  now = new Date(),
+): boolean {
+  const today = civilTodayInTimeZone(timeZone, now)
+  if (!today || !localDate) return false
+  return localDate === today
+}
+
+export function filaChipLabel(isToday: boolean): string {
+  return isToday ? "Fila" : "Todas do dia"
 }
 
 export function sortReservationsByStartsAt(

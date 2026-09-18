@@ -10,8 +10,11 @@ import {
   PREVIEW_INBOX,
   PREVIEW_RESERVATIONS,
   actionsForStatus,
+  canMarkPresence,
   capacityLabel,
+  civilTodayInTimeZone,
   dayReservationsQuery,
+  filaChipLabel,
   filterPreviewItems,
   formatCivilDateShort,
   formatReservationListLine,
@@ -36,12 +39,6 @@ import { parseApiErrorDetail } from "@/components/caixa/types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 
-const FILTERS: { id: ReservationFilter; label: string }[] = [
-  { id: "fila", label: "Fila" },
-  { id: "pending", label: "Pendentes" },
-  { id: "confirmed", label: "Confirmadas" },
-]
-
 function statusBadge(status: string): { label: string; className: string } {
   if (status === "pending") {
     return { label: "Pendente", className: "bg-amber-100 text-amber-800" }
@@ -55,6 +52,7 @@ function statusBadge(status: string): { label: string; className: string } {
 function ReservationItemCard({
   item,
   todayIso,
+  timeZone,
   expanded,
   actionBusy,
   onToggle,
@@ -62,6 +60,7 @@ function ReservationItemCard({
 }: {
   item: CaixaReservationItem
   todayIso: string | null
+  timeZone: string | null
   expanded: boolean
   actionBusy: string | null
   onToggle: () => void
@@ -71,7 +70,9 @@ function ReservationItemCard({
   const vacancy = capacityLabel(item.status, item.capacity_available)
   const when = formatReservationWhen(item, todayIso)
   const line = formatReservationListLine(item, when)
-  const actions = actionsForStatus(item.status)
+  const actions = actionsForStatus(item.status, {
+    canMarkPresence: canMarkPresence(item.local_date, timeZone),
+  })
 
   return (
     <li className="rounded-md border bg-background px-3 py-3">
@@ -387,6 +388,13 @@ export function ReservationsBlock({
 
   const handleAction = useCallback(
     (item: CaixaReservationItem, action: ReservationAction) => {
+      const timeZone = payload?.timezone ?? inbox?.timezone ?? null
+      if (
+        (action === "seat" || action === "no_show") &&
+        !canMarkPresence(item.local_date, timeZone)
+      ) {
+        return
+      }
       if (action === "confirm" && item.capacity_available === false) {
         setConfirmWithoutVacancy(item)
         return
@@ -398,13 +406,20 @@ export function ReservationsBlock({
       }
       void postAction(item, action)
     },
-    [postAction],
+    [postAction, payload?.timezone, inbox?.timezone],
   )
 
   const items = payload?.items ?? []
   const inboxItems = inbox?.items ?? []
-  const viewingToday =
-    !selectedDate || (storeToday != null && selectedDate === storeToday)
+  const storeTz = payload?.timezone ?? inbox?.timezone ?? null
+  const hojeLoja = civilTodayInTimeZone(storeTz)
+  const viewingDate = selectedDate ?? payload?.date ?? storeToday
+  const viewingToday = Boolean(hojeLoja && viewingDate === hojeLoja)
+  const dayFilters: { id: ReservationFilter; label: string }[] = [
+    { id: "fila", label: filaChipLabel(viewingToday) },
+    { id: "pending", label: "Pendentes" },
+    { id: "confirmed", label: "Confirmadas" },
+  ]
   const summaryHeading = viewingToday
     ? "Hoje"
     : payload?.date
@@ -485,7 +500,8 @@ export function ReservationsBlock({
               <ReservationItemCard
                 key={`inbox-${item.id}`}
                 item={item}
-                todayIso={storeToday}
+                todayIso={hojeLoja ?? storeToday}
+                timeZone={inbox?.timezone ?? storeTz}
                 expanded={expandedId === item.id}
                 actionBusy={actionBusy}
                 onToggle={() =>
@@ -557,7 +573,7 @@ export function ReservationsBlock({
         ) : null}
 
         <div className="flex flex-wrap gap-2">
-          {FILTERS.map((chip) => (
+          {dayFilters.map((chip) => (
             <Button
               key={chip.id}
               type="button"
@@ -588,7 +604,8 @@ export function ReservationsBlock({
             <ReservationItemCard
               key={item.id}
               item={item}
-              todayIso={storeToday}
+              todayIso={hojeLoja ?? storeToday}
+              timeZone={payload?.timezone ?? storeTz}
               expanded={expandedId === item.id}
               actionBusy={actionBusy}
               onToggle={() =>
