@@ -16,6 +16,9 @@ import {
   listLineExposesFullPhone,
   listPhoneMask,
   listCallHref,
+  reservationWhatsAppHref,
+  reservationWhatsAppMessage,
+  whatsappE164Digits,
   mapReservationInbox,
   mapReservationList,
   pendingFutureBannerCopy,
@@ -175,14 +178,42 @@ describe("filaChipLabel", () => {
 })
 
 describe("list phone", () => {
-  it("masks the visible line while the tel href still carries the full number", () => {
+  it("masks the visible line while the WhatsApp href still carries the full number", () => {
     const item = PREVIEW_RESERVATIONS.items[0]
     const line = formatReservationListLine(item)
+    const message = reservationWhatsAppMessage({
+      guestName: item.guest_name,
+      storeName: "KiPizza",
+      localDate: item.local_date,
+      localTime: item.local_time,
+      partySize: item.party_size,
+      environmentNome: item.environment_nome,
+    })
+    const href = reservationWhatsAppHref(item.phone_canonical, message)
     expect(listPhoneMask(item.phone_canonical)).toBe("····4321")
     expect(line).toContain("····4321")
     expect(listLineExposesFullPhone(item, line)).toBe(false)
-    expect(listCallHref(item)).toBe(`tel:${item.phone_canonical}`)
+    expect(whatsappE164Digits(item.phone_canonical)).toBe("5511987654321")
+    expect(href).toContain("https://wa.me/5511987654321?text=")
+    expect(listCallHref(item, message)).toBe(href)
     expect(item.phone_canonical).toBe("11987654321")
+  })
+})
+
+describe("reservationWhatsAppMessage", () => {
+  it("matches the caixa opener for Lucas at KiPizza", () => {
+    expect(
+      reservationWhatsAppMessage({
+        guestName: "Lucas",
+        storeName: "KiPizza",
+        localDate: "2026-09-19",
+        localTime: "18:30",
+        partySize: 2,
+        environmentNome: "Piso superior",
+      }),
+    ).toBe(
+      "Olá, Lucas! Aqui é o KiPizza. Sobre sua reserva de sáb., 19/09 às 18:30, para 2 pessoas, no Piso superior.",
+    )
   })
 })
 
