@@ -15,7 +15,6 @@ import {
   formatSummaryLine,
   listLineExposesFullPhone,
   listPhoneMask,
-  listCallHref,
   reservationWhatsAppHref,
   reservationWhatsAppMessage,
   whatsappE164Digits,
@@ -195,8 +194,10 @@ describe("list phone", () => {
     expect(listLineExposesFullPhone(item, line)).toBe(false)
     expect(whatsappE164Digits(item.phone_canonical)).toBe("5511987654321")
     expect(href).toContain("https://wa.me/5511987654321?text=")
-    expect(listCallHref(item, message)).toBe(href)
     expect(item.phone_canonical).toBe("11987654321")
+    expect(whatsappE164Digits("1133334444")).toBeNull()
+    expect(whatsappE164Digits("551133334444")).toBeNull()
+    expect(whatsappE164Digits("5511987654321")).toBe("5511987654321")
   })
 })
 
@@ -212,7 +213,7 @@ describe("reservationWhatsAppMessage", () => {
         environmentNome: "Piso superior",
       }),
     ).toBe(
-      "Olá, Lucas! Aqui é o KiPizza. Sobre sua reserva de sáb., 19/09 às 18:30, para 2 pessoas, no Piso superior.",
+      "Olá, Lucas! Aqui é KiPizza. Sobre sua reserva de sáb., 19/09 às 18:30, para 2 pessoas, no Piso superior.",
     )
   })
 })

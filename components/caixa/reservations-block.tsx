@@ -147,18 +147,7 @@ function ReservationItemCard({
           {item.phone_canonical ? (
             <p>
               Telefone:{" "}
-              {waHref ? (
-                <a
-                  className="underline"
-                  href={waHref}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  {item.phone_canonical}
-                </a>
-              ) : (
-                item.phone_canonical
-              )}
+              <span className="select-all">{item.phone_canonical}</span>
             </p>
           ) : null}
           {item.objetivo ? <p>Objetivo: {item.objetivo}</p> : null}

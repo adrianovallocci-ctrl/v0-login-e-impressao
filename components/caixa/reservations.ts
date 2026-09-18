@@ -440,9 +440,11 @@ export function whatsappE164Digits(
   phone: string | null | undefined,
 ): string | null {
   const digits = digitsOnly(phone)
-  if (digits.length < 10) return null
-  if (digits.startsWith("55") && digits.length >= 12) return digits
-  return `55${digits}`
+  if (digits.startsWith("55") && digits.length === 13 && digits[4] === "9") {
+    return digits
+  }
+  if (digits.length === 11 && digits[2] === "9") return `55${digits}`
+  return null
 }
 
 export function formatWhatsAppReservationWhen(iso: string): string | null {
@@ -472,7 +474,7 @@ export function reservationWhatsAppMessage(opts: {
     opts.partySize === 1 ? "1 pessoa" : `${opts.partySize} pessoas`
   const env = opts.environmentNome?.trim()
   const hello = name ? `Olá, ${name}!` : "Olá!"
-  const who = store ? ` Aqui é o ${store}.` : ""
+  const who = store ? ` Aqui é ${store}.` : ""
   const datePart = [when, time ? `às ${time}` : null].filter(Boolean).join(" ")
   const about = datePart
     ? ` Sobre sua reserva de ${datePart}, para ${people}`
@@ -488,13 +490,6 @@ export function reservationWhatsAppHref(
   const e164 = whatsappE164Digits(phone)
   if (!e164) return null
   return `https://wa.me/${e164}?text=${encodeURIComponent(message)}`
-}
-
-export function listCallHref(
-  item: Pick<CaixaReservationItem, "phone_canonical">,
-  message = "",
-): string | null {
-  return reservationWhatsAppHref(item.phone_canonical, message)
 }
 
 export function statusQuery(filter: ReservationFilter): string {
