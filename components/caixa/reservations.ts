@@ -160,6 +160,8 @@ export type CaixaActionIntent =
   | "block"
   | "confirm_without_vacancy"
   | "decline"
+  | "cancel"
+  | "no_show"
   | "post"
 
 export function resolveCaixaActionIntent(
@@ -178,7 +180,48 @@ export function resolveCaixaActionIntent(
     return "confirm_without_vacancy"
   }
   if (action === "decline") return "decline"
+  if (action === "cancel") return "cancel"
+  if (action === "no_show") return "no_show"
   return "post"
+}
+
+export const DESTRUCTIVE_DIALOG_COPY = {
+  confirm_without_vacancy: {
+    title: "Este horário está sem vaga agora.",
+    body: "Horário sem vaga. Confirmar mesmo assim?",
+    confirmLabel: "Confirmar mesa",
+    action: "confirm" as const,
+  },
+  cancel: {
+    title: "Cancelar esta reserva?",
+    body: "O cliente vê o cancelamento no app. Não tem como desfazer.",
+    confirmLabel: "Cancelar reserva",
+    action: "cancel" as const,
+  },
+  no_show: {
+    title: "Marcar como não compareceu?",
+    body: "Conta para o histórico do cliente nesta loja. Não tem como desfazer.",
+    confirmLabel: "Não compareceu",
+    action: "no_show" as const,
+  },
+} as const
+
+export type ConfirmDialogKind = keyof typeof DESTRUCTIVE_DIALOG_COPY
+
+export function formatDestructiveReservationSummary(
+  item: Pick<
+    CaixaReservationItem,
+    "guest_name" | "local_date" | "local_time" | "party_size" | "environment_nome"
+  >,
+): string {
+  const name = item.guest_name?.trim() || "Cliente"
+  const when = [formatCivilDateShort(item.local_date), item.local_time?.trim()]
+    .filter(Boolean)
+    .join(" ")
+  const people =
+    item.party_size === 1 ? "1 pessoa" : `${item.party_size} pessoas`
+  const env = item.environment_nome?.trim() || "Ambiente"
+  return [name, when, people, env].join(" · ")
 }
 
 export function filaChipLabel(isToday: boolean): string {

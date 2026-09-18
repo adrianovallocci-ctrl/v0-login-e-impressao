@@ -1,7 +1,7 @@
 "use client"
 
 import { ChevronLeft, ChevronRight, Loader2, MessageCircle, RefreshCw } from "lucide-react"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react"
 import { toast } from "sonner"
 
 import { useAuth } from "@/components/caixa/auth-provider"
@@ -17,9 +17,11 @@ import {
   dayReservationsQuery,
   daysBetweenCivil,
   dateSelectorValue,
+  DESTRUCTIVE_DIALOG_COPY,
   filaChipLabel,
   filterPreviewItems,
   formatCivilDateShort,
+  formatDestructiveReservationSummary,
   formatReservationListLine,
   formatReservationWhen,
   formatSummaryLine,
@@ -43,12 +45,53 @@ import {
   type CaixaReservationInboxResponse,
   type CaixaReservationItem,
   type CaixaReservationListResponse,
+  type ConfirmDialogKind,
   type ReservationAction,
   type ReservationFilter,
 } from "@/components/caixa/reservations"
 import { parseApiErrorDetail } from "@/components/caixa/types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+
+function CaixaConfirmDialog({
+  title,
+  body,
+  confirmLabel,
+  busy,
+  onBack,
+  onConfirm,
+  children,
+}: {
+  title: string
+  body: string
+  confirmLabel: string
+  busy: boolean
+  onBack: () => void
+  onConfirm: () => void
+  children?: ReactNode
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="w-full max-w-sm rounded-xl bg-background p-4 shadow-lg">
+        <p className="font-medium">{title}</p>
+        {children}
+        <p className="mt-2 text-sm text-muted-foreground">{body}</p>
+        <div className="mt-4 flex gap-2">
+          <Button variant="outline" className="flex-1" onClick={onBack}>
+            Voltar
+          </Button>
+          <Button
+            className="flex-1"
+            disabled={busy}
+            onClick={onConfirm}
+          >
+            {confirmLabel}
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 function statusBadge(status: string): { label: string; className: string } {
   if (status === "pending") {
@@ -212,8 +255,10 @@ export function ReservationsBlock({
   const [loading, setLoading] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [actionBusy, setActionBusy] = useState<string | null>(null)
-  const [confirmWithoutVacancy, setConfirmWithoutVacancy] =
-    useState<CaixaReservationItem | null>(null)
+  const [confirmDialog, setConfirmDialog] = useState<{
+    kind: ConfirmDialogKind
+    item: CaixaReservationItem
+  } | null>(null)
   const [declineTarget, setDeclineTarget] =
     useState<CaixaReservationItem | null>(null)
   const [declineNote, setDeclineNote] = useState("")
@@ -416,7 +461,7 @@ export function ReservationsBlock({
             return null
           },
         })
-        setConfirmWithoutVacancy(null)
+        setConfirmDialog(null)
         setDeclineTarget(null)
         setDeclineNote("")
       } catch {
@@ -436,12 +481,20 @@ export function ReservationsBlock({
         return
       }
       if (intent === "confirm_without_vacancy") {
-        setConfirmWithoutVacancy(item)
+        setConfirmDialog({ kind: "confirm_without_vacancy", item })
         return
       }
       if (intent === "decline") {
         setDeclineNote("")
         setDeclineTarget(item)
+        return
+      }
+      if (intent === "cancel") {
+        setConfirmDialog({ kind: "cancel", item })
+        return
+      }
+      if (intent === "no_show") {
+        setConfirmDialog({ kind: "no_show", item })
         return
       }
       void postAction(item, action)
@@ -663,33 +716,26 @@ export function ReservationsBlock({
         </ul>
       </div>
 
-      {confirmWithoutVacancy ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-sm rounded-xl bg-background p-4 shadow-lg">
-            <p className="font-medium">Este horário está sem vaga agora.</p>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Horário sem vaga. Confirmar mesmo assim?
+      {confirmDialog ? (
+        <CaixaConfirmDialog
+          title={DESTRUCTIVE_DIALOG_COPY[confirmDialog.kind].title}
+          body={DESTRUCTIVE_DIALOG_COPY[confirmDialog.kind].body}
+          confirmLabel={DESTRUCTIVE_DIALOG_COPY[confirmDialog.kind].confirmLabel}
+          busy={actionBusy != null}
+          onBack={() => setConfirmDialog(null)}
+          onConfirm={() =>
+            void postAction(
+              confirmDialog.item,
+              DESTRUCTIVE_DIALOG_COPY[confirmDialog.kind].action,
+            )
+          }
+        >
+          {confirmDialog.kind !== "confirm_without_vacancy" ? (
+            <p className="mt-2 text-sm">
+              {formatDestructiveReservationSummary(confirmDialog.item)}
             </p>
-            <div className="mt-4 flex gap-2">
-              <Button
-                variant="outline"
-                className="flex-1"
-                onClick={() => setConfirmWithoutVacancy(null)}
-              >
-                Voltar
-              </Button>
-              <Button
-                className="flex-1"
-                disabled={actionBusy != null}
-                onClick={() =>
-                  void postAction(confirmWithoutVacancy, "confirm")
-                }
-              >
-                Confirmar mesa
-              </Button>
-            </div>
-          </div>
-        </div>
+          ) : null}
+        </CaixaConfirmDialog>
       ) : null}
 
       {declineTarget ? (
