@@ -1,6 +1,6 @@
 "use client"
 
-import { ChevronLeft, ChevronRight, Loader2, Phone, RefreshCw } from "lucide-react"
+import { ChevronLeft, ChevronRight, Loader2, MessageCircle, RefreshCw } from "lucide-react"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
 
@@ -29,6 +29,8 @@ import {
   pendingFutureBannerCopy,
   postThenRefetch,
   rememberStoreToday,
+  reservationWhatsAppHref,
+  reservationWhatsAppMessage,
   resolveCaixaActionIntent,
   selectedDateFromPicker,
   selectedDateFromShift,
@@ -62,6 +64,7 @@ function ReservationItemCard({
   item,
   todayIso,
   timeZone,
+  storeName,
   expanded,
   actionBusy,
   onToggle,
@@ -70,6 +73,7 @@ function ReservationItemCard({
   item: CaixaReservationItem
   todayIso: string | null
   timeZone: string | null
+  storeName: string | null
   expanded: boolean
   actionBusy: string | null
   onToggle: () => void
@@ -82,6 +86,17 @@ function ReservationItemCard({
   const actions = actionsForStatus(item.status, {
     canMarkPresence: canMarkPresence(item.local_date, timeZone),
   })
+  const waHref = reservationWhatsAppHref(
+    item.phone_canonical,
+    reservationWhatsAppMessage({
+      guestName: item.guest_name,
+      storeName,
+      localDate: item.local_date,
+      localTime: item.local_time,
+      partySize: item.party_size,
+      environmentNome: item.environment_nome,
+    }),
+  )
 
   return (
     <li className="rounded-md border bg-background px-3 py-3">
@@ -115,13 +130,15 @@ function ReservationItemCard({
         <p className="text-sm text-muted-foreground">{line}</p>
       </button>
 
-      {item.phone_canonical ? (
+      {waHref ? (
         <a
-          href={`tel:${item.phone_canonical}`}
+          href={waHref}
+          target="_blank"
+          rel="noopener noreferrer"
           className="mt-3 inline-flex h-11 w-full items-center justify-center gap-2 rounded-md border bg-background text-sm font-medium hover:bg-muted"
         >
-          <Phone className="size-4" aria-hidden="true" />
-          Ligar
+          <MessageCircle className="size-4" aria-hidden="true" />
+          WhatsApp
         </a>
       ) : null}
 
@@ -130,9 +147,7 @@ function ReservationItemCard({
           {item.phone_canonical ? (
             <p>
               Telefone:{" "}
-              <a className="underline" href={`tel:${item.phone_canonical}`}>
-                {item.phone_canonical}
-              </a>
+              <span className="select-all">{item.phone_canonical}</span>
             </p>
           ) : null}
           {item.objetivo ? <p>Objetivo: {item.objetivo}</p> : null}
@@ -180,8 +195,10 @@ function ReservationItemCard({
 }
 
 export function ReservationsBlock({
+  establishmentName,
   onVisibilityChange,
 }: {
+  establishmentName?: string | null
   onVisibilityChange?: (visible: boolean) => void
 }) {
   const { token, preview, clearToken } = useAuth()
@@ -525,6 +542,7 @@ export function ReservationsBlock({
                 item={item}
                 todayIso={liveToday}
                 timeZone={storeTz}
+                storeName={establishmentName ?? null}
                 expanded={expandedId === item.id}
                 actionBusy={actionBusy}
                 onToggle={() =>
@@ -631,6 +649,7 @@ export function ReservationsBlock({
               item={item}
               todayIso={liveToday}
               timeZone={storeTz}
+              storeName={establishmentName ?? null}
               expanded={expandedId === item.id}
               actionBusy={actionBusy}
               onToggle={() =>

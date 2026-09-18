@@ -436,10 +436,60 @@ export function listLineExposesFullPhone(
   return false
 }
 
-export function listCallHref(
-  item: Pick<CaixaReservationItem, "phone_canonical">,
+export function whatsappE164Digits(
+  phone: string | null | undefined,
 ): string | null {
-  return item.phone_canonical ? `tel:${item.phone_canonical}` : null
+  const digits = digitsOnly(phone)
+  if (digits.startsWith("55") && digits.length === 13 && digits[4] === "9") {
+    return digits
+  }
+  if (digits.length === 11 && digits[2] === "9") return `55${digits}`
+  return null
+}
+
+export function formatWhatsAppReservationWhen(iso: string): string | null {
+  const date = civilDateFromParts(iso)
+  if (!date) return null
+  const weekday = date
+    .toLocaleDateString("pt-BR", { weekday: "short", timeZone: "UTC" })
+    .replace(/,$/, "")
+  const dd = String(date.getUTCDate()).padStart(2, "0")
+  const mm = String(date.getUTCMonth() + 1).padStart(2, "0")
+  return `${weekday}, ${dd}/${mm}`
+}
+
+export function reservationWhatsAppMessage(opts: {
+  guestName?: string | null
+  storeName?: string | null
+  localDate: string
+  localTime: string
+  partySize: number
+  environmentNome?: string | null
+}): string {
+  const name = opts.guestName?.trim()
+  const store = opts.storeName?.trim()
+  const when = formatWhatsAppReservationWhen(opts.localDate)
+  const time = opts.localTime?.trim()
+  const people =
+    opts.partySize === 1 ? "1 pessoa" : `${opts.partySize} pessoas`
+  const env = opts.environmentNome?.trim()
+  const hello = name ? `Olá, ${name}!` : "Olá!"
+  const who = store ? ` Aqui é ${store}.` : ""
+  const datePart = [when, time ? `às ${time}` : null].filter(Boolean).join(" ")
+  const about = datePart
+    ? ` Sobre sua reserva de ${datePart}, para ${people}`
+    : ` Sobre sua reserva para ${people}`
+  const place = env ? `, no ${env}` : ""
+  return `${hello}${who}${about}${place}.`
+}
+
+export function reservationWhatsAppHref(
+  phone: string | null | undefined,
+  message: string,
+): string | null {
+  const e164 = whatsappE164Digits(phone)
+  if (!e164) return null
+  return `https://wa.me/${e164}?text=${encodeURIComponent(message)}`
 }
 
 export function statusQuery(filter: ReservationFilter): string {

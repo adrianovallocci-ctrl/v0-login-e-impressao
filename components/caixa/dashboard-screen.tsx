@@ -601,7 +601,10 @@ export function DashboardScreen({
             </section>
           ) : null}
 
-          <ReservationsBlock onVisibilityChange={setReservationsVisible} />
+          <ReservationsBlock
+            establishmentName={establishment?.name}
+            onVisibilityChange={setReservationsVisible}
+          />
         </div>
       </main>
     </div>
