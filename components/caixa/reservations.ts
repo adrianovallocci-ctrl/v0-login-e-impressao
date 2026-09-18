@@ -78,13 +78,16 @@ export function caixaHomeLayoutClass(opts: {
   const count = [opts.loyalty, opts.vitrine, opts.reservations].filter(Boolean)
     .length
   if (count >= 3) {
-    return "grid grid-cols-1 items-stretch gap-6 lg:grid-cols-3"
+    return "grid grid-cols-1 items-start gap-6 lg:grid-cols-3"
   }
   if (count === 2) {
-    return "grid grid-cols-1 items-stretch gap-6 lg:grid-cols-2"
+    return "grid grid-cols-1 items-start gap-6 lg:grid-cols-2"
   }
   return "mx-auto flex w-full max-w-md flex-col gap-6"
 }
+
+export const CAIXA_RESERVATIONS_COLUMN_CLASS =
+  "flex max-h-[calc(100dvh-6rem)] min-h-0 w-full flex-col overflow-hidden rounded-xl border bg-card shadow-sm"
 
 export function shouldPollReservations(opts: {
   moduleEnabled: boolean

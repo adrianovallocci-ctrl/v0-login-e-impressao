@@ -370,7 +370,7 @@ export function DashboardScreen({
       <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 p-4">
         <div className={homeLayoutClass}>
           {loyaltyEnabled ? (
-            <section className="flex h-full flex-col overflow-hidden rounded-xl border bg-card shadow-sm">
+            <section className="flex flex-col overflow-hidden rounded-xl border bg-card shadow-sm">
               <div className="aspect-[2.4/1] bg-[#0B3D91]">
                 <img
                   src="/fidelidade-consumo-local-banner.jpg"
@@ -534,7 +534,7 @@ export function DashboardScreen({
           ) : null}
 
           {vitrineEnabled ? (
-            <section className="flex h-full flex-col overflow-hidden rounded-xl border bg-card shadow-sm">
+            <section className="flex flex-col overflow-hidden rounded-xl border bg-card shadow-sm">
               <div className="aspect-[2.4/1] bg-[#F06818]">
                 <img
                   src="/Cupom-Hospedeiro.jpg"
