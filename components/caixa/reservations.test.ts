@@ -4,6 +4,7 @@ import { parseApiError, parseApiErrorDetail } from "@/components/caixa/types"
 import {
   actionsForStatus,
   caixaHomeLayoutClass,
+  CAIXA_RESERVATIONS_COLUMN_CLASS,
   canPrintReservationsDay,
   canMarkPresence,
   capacityLabel,
@@ -344,6 +345,18 @@ describe("print cards stay independent", () => {
         reservations: false,
       }),
     ).not.toContain("lg:grid-cols-3")
+  })
+
+  it("aligns cards to the top so print columns do not stretch with reservations", () => {
+    const layout = caixaHomeLayoutClass({
+      loyalty: true,
+      vitrine: true,
+      reservations: true,
+    })
+    expect(layout).toContain("items-start")
+    expect(layout).not.toContain("items-stretch")
+    expect(CAIXA_RESERVATIONS_COLUMN_CLASS).toContain("max-h-[calc(100dvh-6rem)]")
+    expect(CAIXA_RESERVATIONS_COLUMN_CLASS).toContain("overflow-hidden")
   })
 })
 

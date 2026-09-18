@@ -7,6 +7,7 @@ import { toast } from "sonner"
 import { useAuth } from "@/components/caixa/auth-provider"
 import {
   ACTION_LABELS,
+  CAIXA_RESERVATIONS_COLUMN_CLASS,
   PREVIEW_INBOX,
   PREVIEW_RESERVATIONS,
   PRESENCE_BLOCKED_TOAST,
@@ -619,8 +620,8 @@ export function ReservationsBlock({
   if (payload && !visible) return null
 
   return (
-    <section className="flex h-full flex-col overflow-hidden rounded-xl border bg-card shadow-sm">
-      <div className="aspect-[2.4/1] bg-[#1B7A3A]">
+    <section className={CAIXA_RESERVATIONS_COLUMN_CLASS}>
+      <div className="aspect-[2.4/1] shrink-0 bg-[#1B7A3A]">
         <img
           src="/reserva-mesa-banner.jpg"
           alt="Reserva de mesa"
@@ -675,28 +676,6 @@ export function ReservationsBlock({
           <p className="rounded-md border border-sky-300 bg-sky-50 px-3 py-2 text-sm font-medium text-sky-950">
             {inboxCopy}
           </p>
-        ) : null}
-
-        {inboxItems.length > 0 ? (
-          <ul className="space-y-3">
-            {inboxItems.map((item) => (
-              <ReservationItemCard
-                key={`inbox-${item.id}`}
-                item={item}
-                todayIso={liveToday}
-                timeZone={storeTz}
-                storeName={establishmentName ?? null}
-                expanded={expandedId === item.id}
-                actionBusy={actionBusy}
-                onToggle={() =>
-                  setExpandedId((current) =>
-                    current === item.id ? null : item.id,
-                  )
-                }
-                onAction={handleAction}
-              />
-            ))}
-          </ul>
         ) : null}
 
         <div className="flex flex-wrap items-center gap-2">
@@ -772,38 +751,62 @@ export function ReservationsBlock({
           ))}
         </div>
 
-        {loading && items.length === 0 ? (
-          <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
-            <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-            Carregando…
-          </div>
-        ) : null}
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto">
+          {inboxItems.length > 0 ? (
+            <ul className="space-y-3">
+              {inboxItems.map((item) => (
+                <ReservationItemCard
+                  key={`inbox-${item.id}`}
+                  item={item}
+                  todayIso={liveToday}
+                  timeZone={storeTz}
+                  storeName={establishmentName ?? null}
+                  expanded={expandedId === item.id}
+                  actionBusy={actionBusy}
+                  onToggle={() =>
+                    setExpandedId((current) =>
+                      current === item.id ? null : item.id,
+                    )
+                  }
+                  onAction={handleAction}
+                />
+              ))}
+            </ul>
+          ) : null}
 
-        {!loading && items.length === 0 && payload?.module_enabled ? (
-          <p className="rounded-md bg-muted px-3 py-4 text-center text-sm text-muted-foreground">
-            Nenhuma reserva neste dia.
-          </p>
-        ) : null}
+          {loading && items.length === 0 ? (
+            <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
+              <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+              Carregando…
+            </div>
+          ) : null}
 
-        <ul className="min-h-0 flex-1 space-y-3 overflow-y-auto">
-          {items.map((item) => (
-            <ReservationItemCard
-              key={item.id}
-              item={item}
-              todayIso={liveToday}
-              timeZone={storeTz}
-              storeName={establishmentName ?? null}
-              expanded={expandedId === item.id}
-              actionBusy={actionBusy}
-              onToggle={() =>
-                setExpandedId((current) =>
-                  current === item.id ? null : item.id,
-                )
-              }
-              onAction={handleAction}
-            />
-          ))}
-        </ul>
+          {!loading && items.length === 0 && payload?.module_enabled ? (
+            <p className="rounded-md bg-muted px-3 py-4 text-center text-sm text-muted-foreground">
+              Nenhuma reserva neste dia.
+            </p>
+          ) : null}
+
+          <ul className="space-y-3">
+            {items.map((item) => (
+              <ReservationItemCard
+                key={item.id}
+                item={item}
+                todayIso={liveToday}
+                timeZone={storeTz}
+                storeName={establishmentName ?? null}
+                expanded={expandedId === item.id}
+                actionBusy={actionBusy}
+                onToggle={() =>
+                  setExpandedId((current) =>
+                    current === item.id ? null : item.id,
+                  )
+                }
+                onAction={handleAction}
+              />
+            ))}
+          </ul>
+        </div>
       </div>
 
       {confirmDialog ? (
