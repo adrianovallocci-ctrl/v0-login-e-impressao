@@ -228,6 +228,19 @@ export function filaChipLabel(isToday: boolean): string {
   return isToday ? "Fila" : "Todas do dia"
 }
 
+export function canPrintReservationsDay(opts: {
+  count: number
+  loading: boolean
+  preview: boolean
+  hasToken: boolean
+}): boolean {
+  if (opts.loading) return false
+  if (opts.count <= 0) return false
+  if (opts.preview && !opts.hasToken) return false
+  if (!opts.hasToken) return false
+  return true
+}
+
 export function sortReservationsByStartsAt(
   items: CaixaReservationItem[],
 ): CaixaReservationItem[] {

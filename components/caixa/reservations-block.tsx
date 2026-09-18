@@ -1,6 +1,6 @@
 "use client"
 
-import { ChevronLeft, ChevronRight, Loader2, MessageCircle, RefreshCw } from "lucide-react"
+import { ChevronLeft, ChevronRight, Loader2, MessageCircle, Printer, RefreshCw } from "lucide-react"
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react"
 import { toast } from "sonner"
 
@@ -12,6 +12,7 @@ import {
   PRESENCE_BLOCKED_TOAST,
   actionsForStatus,
   canMarkPresence,
+  canPrintReservationsDay,
   capacityLabel,
   civilTodayInTimeZone,
   dayReservationsQuery,
@@ -255,6 +256,7 @@ export function ReservationsBlock({
   const [loading, setLoading] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [actionBusy, setActionBusy] = useState<string | null>(null)
+  const [printDayBusy, setPrintDayBusy] = useState(false)
   const [confirmDialog, setConfirmDialog] = useState<{
     kind: ConfirmDialogKind
     item: CaixaReservationItem
@@ -532,6 +534,61 @@ export function ReservationsBlock({
     : null
   const inboxCopy = pendingFutureBannerCopy(inbox?.pending_future_count ?? 0)
   const dateValue = dateSelectorValue(selectedDate, liveToday)
+  const printCount = payload?.summary.reservations_count ?? 0
+  const canPrint = canPrintReservationsDay({
+    count: printCount,
+    loading: loading || printDayBusy,
+    preview,
+    hasToken: Boolean(token),
+  })
+
+  const printReservationsDay = useCallback(async () => {
+    if (!dateValue) return
+    if (preview && !token) {
+      toast.info("Modo teste — faça login para imprimir.")
+      return
+    }
+    if (!token) return
+
+    setPrintDayBusy(true)
+    try {
+      const response = await fetch(
+        "/api/proxy/collaborator/print-reservations-day",
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ local_date: dateValue }),
+        },
+      )
+
+      if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+          toast.error("Sessão expirada. Faça login novamente.")
+          clearToken()
+          return
+        }
+        if (response.status === 404) {
+          toast.error("Impressão indisponível. Tente novamente em instantes.")
+          return
+        }
+        const detail = await parseApiErrorDetail(response)
+        toast.error(
+          detail.message ??
+            `Não foi possível imprimir (erro ${response.status}).`,
+        )
+        return
+      }
+
+      toast.success("Resumo enviado para a fila de impressão.")
+    } catch {
+      toast.error("Falha de conexão. Tente novamente.")
+    } finally {
+      setPrintDayBusy(false)
+    }
+  }, [clearToken, dateValue, preview, token])
 
   const visible = useMemo(
     () => shouldShowReservationsBlock(payload?.module_enabled),
@@ -659,6 +716,20 @@ export function ReservationsBlock({
             }
           >
             <ChevronRight className="size-4" aria-hidden="true" />
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={!canPrint || !dateValue}
+            onClick={() => void printReservationsDay()}
+          >
+            {printDayBusy ? (
+              <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+            ) : (
+              <Printer className="size-4" aria-hidden="true" />
+            )}
+            Imprimir resumo do dia
           </Button>
         </div>
 

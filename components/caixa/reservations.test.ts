@@ -4,6 +4,7 @@ import { parseApiError, parseApiErrorDetail } from "@/components/caixa/types"
 import {
   actionsForStatus,
   caixaHomeLayoutClass,
+  canPrintReservationsDay,
   canMarkPresence,
   capacityLabel,
   civilTodayInTimeZone,
@@ -564,6 +565,70 @@ describe("filterPreviewItems", () => {
       "fila",
     )
     expect(filtered.every((item) => item.status !== "seated")).toBe(true)
+  })
+})
+
+describe("canPrintReservationsDay", () => {
+  it("is false when count is 0", () => {
+    expect(
+      canPrintReservationsDay({
+        count: 0,
+        loading: false,
+        preview: false,
+        hasToken: true,
+      }),
+    ).toBe(false)
+  })
+
+  it("is false while loading", () => {
+    expect(
+      canPrintReservationsDay({
+        count: 3,
+        loading: true,
+        preview: false,
+        hasToken: true,
+      }),
+    ).toBe(false)
+  })
+
+  it("is false in preview without token", () => {
+    expect(
+      canPrintReservationsDay({
+        count: 3,
+        loading: false,
+        preview: true,
+        hasToken: false,
+      }),
+    ).toBe(false)
+  })
+
+  it("is true when count > 0 with token", () => {
+    expect(
+      canPrintReservationsDay({
+        count: 3,
+        loading: false,
+        preview: false,
+        hasToken: true,
+      }),
+    ).toBe(true)
+  })
+
+  it("stays true when summary count is positive and the status-filtered list is empty", () => {
+    const visibleItems = filterPreviewItems(
+      PREVIEW_RESERVATIONS.items,
+      "pending",
+    ).filter((item) => item.status === "confirmed")
+    const count = PREVIEW_RESERVATIONS.summary.reservations_count
+    expect(visibleItems).toEqual([])
+    expect(count).toBeGreaterThan(0)
+    expect(
+      canPrintReservationsDay({
+        count,
+        loading: false,
+        preview: false,
+        hasToken: true,
+      }),
+    ).toBe(true)
   })
 })
 
