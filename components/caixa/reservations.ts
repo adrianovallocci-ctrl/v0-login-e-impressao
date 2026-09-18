@@ -208,6 +208,10 @@ export const DESTRUCTIVE_DIALOG_COPY = {
 
 export type ConfirmDialogKind = keyof typeof DESTRUCTIVE_DIALOG_COPY
 
+export function partySizeLabel(count: number): string {
+  return count === 1 ? "1 pessoa" : `${count} pessoas`
+}
+
 export function formatDestructiveReservationSummary(
   item: Pick<
     CaixaReservationItem,
@@ -218,10 +222,8 @@ export function formatDestructiveReservationSummary(
   const when = [formatCivilDateShort(item.local_date), item.local_time?.trim()]
     .filter(Boolean)
     .join(" ")
-  const people =
-    item.party_size === 1 ? "1 pessoa" : `${item.party_size} pessoas`
   const env = item.environment_nome?.trim() || "Ambiente"
-  return [name, when, people, env].join(" · ")
+  return [name, when, partySizeLabel(item.party_size), env].join(" · ")
 }
 
 export function filaChipLabel(isToday: boolean): string {
@@ -454,20 +456,19 @@ export function listPhoneMask(phone: string | null | undefined): string | null {
   return `····${digits.slice(-4)}`
 }
 
+export function listPhoneLine(phone: string | null | undefined): string | null {
+  const mask = listPhoneMask(phone)
+  return mask ? `Celular ${mask}` : null
+}
+
 export function digitsOnly(value: string | null | undefined): string {
   return (value ?? "").replace(/\D/g, "")
 }
 
-export function formatReservationListLine(
+export function formatReservationListExtras(
   item: CaixaReservationItem,
-  when = item.local_time,
 ): string {
-  const people =
-    item.party_size === 1 ? "1 pessoa" : `${item.party_size} pessoas`
-  const env = item.environment_nome?.trim() || "Ambiente"
-  const parts = [when || item.local_time, people, env]
-  const mask = listPhoneMask(item.phone_canonical)
-  if (mask) parts.push(mask)
+  const parts = [item.environment_nome?.trim() || "Ambiente"]
   if (item.requer_acessibilidade) parts.push("acessível")
   if (item.cadeiroes_qtd > 0) {
     parts.push(

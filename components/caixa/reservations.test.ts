@@ -11,12 +11,13 @@ import {
   dayReservationsQuery,
   filaChipLabel,
   filterPreviewItems,
-  formatReservationListLine,
+  formatReservationListExtras,
   formatReservationWhen,
   formatSummaryLine,
   formatDestructiveReservationSummary,
   listLineExposesFullPhone,
-  listPhoneMask,
+  listPhoneLine,
+  partySizeLabel,
   listWhatsAppHref,
   reservationWhatsAppHref,
   reservationWhatsAppMessage,
@@ -231,9 +232,10 @@ describe("filaChipLabel", () => {
 })
 
 describe("list phone", () => {
-  it("masks the visible line while the WhatsApp href still carries the full number", () => {
+  it("labels Celular with last four digits and never the full number", () => {
     const item = PREVIEW_RESERVATIONS.items[0]
-    const line = formatReservationListLine(item)
+    const extras = formatReservationListExtras(item)
+    const phoneLine = listPhoneLine(item.phone_canonical)
     const message = reservationWhatsAppMessage({
       guestName: item.guest_name,
       storeName: "KiPizza",
@@ -243,12 +245,37 @@ describe("list phone", () => {
       environmentNome: item.environment_nome,
     })
     const href = listWhatsAppHref(item, message)
-    expect(listPhoneMask(item.phone_canonical)).toBe("····4321")
-    expect(line).toContain("····4321")
-    expect(listLineExposesFullPhone(item, line)).toBe(false)
+    expect(phoneLine).toBe("Celular ····4321")
+    expect(extras).not.toContain("····4321")
+    expect(extras).not.toContain("pessoas")
+    expect(listLineExposesFullPhone(item, extras)).toBe(false)
+    expect(listLineExposesFullPhone(item, phoneLine!)).toBe(false)
     expect(href).toContain("https://wa.me/5511987654321?text=")
     expect(href).toBe(reservationWhatsAppHref(item.phone_canonical, message))
     expect(item.phone_canonical).toBe("11987654321")
+  })
+
+  it("keeps two same-name guests distinguishable by last four digits", () => {
+    expect(listPhoneLine("11988880001")).toBe("Celular ····0001")
+    expect(listPhoneLine("11988880002")).toBe("Celular ····0002")
+  })
+})
+
+describe("partySizeLabel", () => {
+  it("isolates singular and plural", () => {
+    expect(partySizeLabel(1)).toBe("1 pessoa")
+    expect(partySizeLabel(5)).toBe("5 pessoas")
+  })
+})
+
+describe("formatReservationListExtras", () => {
+  it("appends accessibility flags only when set", () => {
+    const plain = formatReservationListExtras(PREVIEW_RESERVATIONS.items[0])
+    const flagged = formatReservationListExtras(PREVIEW_RESERVATIONS.items[1])
+    const stroller = formatReservationListExtras(PREVIEW_RESERVATIONS.items[2])
+    expect(plain).toBe("Salão")
+    expect(flagged).toBe("Salão · acessível · 1 cadeirão")
+    expect(stroller).toBe("Varanda · carrinho")
   })
 })
 
