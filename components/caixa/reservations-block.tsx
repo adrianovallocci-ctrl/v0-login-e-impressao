@@ -9,11 +9,13 @@ import {
   ACTION_LABELS,
   PREVIEW_INBOX,
   PREVIEW_RESERVATIONS,
+  PRESENCE_BLOCKED_TOAST,
   actionsForStatus,
   canMarkPresence,
   capacityLabel,
   civilTodayInTimeZone,
   dayReservationsQuery,
+  daysBetweenCivil,
   filaChipLabel,
   filterPreviewItems,
   formatCivilDateShort,
@@ -24,7 +26,10 @@ import {
   mapReservationList,
   pendingFutureBannerCopy,
   postThenRefetch,
+  rememberStoreToday,
   resolveCaixaActionIntent,
+  shiftPreviewInboxToDate,
+  shiftPreviewReservationsToDate,
   shiftCivilDate,
   shouldPollReservations,
   shouldShowReservationsBlock,
@@ -200,12 +205,18 @@ export function ReservationsBlock({
       if (!sessionActive) return
 
       if (preview && !token) {
-        const today = PREVIEW_RESERVATIONS.date
+        const today =
+          civilTodayInTimeZone(PREVIEW_RESERVATIONS.timezone) ??
+          PREVIEW_RESERVATIONS.date
+        const previewDay = shiftPreviewReservationsToDate(
+          PREVIEW_RESERVATIONS,
+          today,
+        )
         setStoreToday(today)
-        const items = filterPreviewItems(PREVIEW_RESERVATIONS.items, filter)
+        const items = filterPreviewItems(previewDay.items, filter)
         const viewing = selectedDate ?? today
         setPayload({
-          ...PREVIEW_RESERVATIONS,
+          ...previewDay,
           date: viewing,
           items: viewing === today ? items : [],
         })
@@ -239,7 +250,7 @@ export function ReservationsBlock({
         const body = (await response.json()) as Record<string, unknown>
         const mapped = mapReservationList(body)
         setPayload(mapped)
-        if (!selectedDate && mapped.date) setStoreToday(mapped.date)
+        setStoreToday((current) => rememberStoreToday(current, mapped.date))
       } catch {
         toast.error("Falha de conexão ao carregar reservas.")
       } finally {
@@ -254,7 +265,11 @@ export function ReservationsBlock({
       if (!sessionActive) return
 
       if (preview && !token) {
-        setInbox(PREVIEW_INBOX)
+        const today =
+          civilTodayInTimeZone(PREVIEW_RESERVATIONS.timezone) ??
+          PREVIEW_RESERVATIONS.date
+        const days = daysBetweenCivil(PREVIEW_RESERVATIONS.date, today) ?? 0
+        setInbox(shiftPreviewInboxToDate(PREVIEW_INBOX, days))
         return
       }
       if (!token) return
@@ -391,7 +406,10 @@ export function ReservationsBlock({
   const handleAction = useCallback(
     (item: CaixaReservationItem, action: ReservationAction) => {
       const intent = resolveCaixaActionIntent(item, action, storeTz)
-      if (intent === "block") return
+      if (intent === "block") {
+        toast.info(PRESENCE_BLOCKED_TOAST)
+        return
+      }
       if (intent === "confirm_without_vacancy") {
         setConfirmWithoutVacancy(item)
         return

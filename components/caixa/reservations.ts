@@ -110,13 +110,15 @@ export async function postThenRefetch<T>(opts: {
   return opts.refetch()
 }
 
+export const PRESENCE_BLOCKED_TOAST = "Disponível no dia da reserva."
+
 export function actionsForStatus(
   status: string,
   opts?: { canMarkPresence?: boolean },
 ): ReservationAction[] {
   if (status === "pending") return ["confirm", "decline", "cancel"]
   if (status === "confirmed") {
-    if (opts?.canMarkPresence === false) return ["cancel"]
+    if (opts?.canMarkPresence !== true) return ["cancel"]
     return ["seat", "no_show", "cancel"]
   }
   return []
@@ -242,6 +244,56 @@ export function daysBetweenCivil(fromIso: string, toIso: string): number | null 
   return Math.round((to.getTime() - from.getTime()) / 86_400_000)
 }
 
+export function rememberStoreToday(
+  current: string | null | undefined,
+  mappedDate: string | null | undefined,
+): string | null {
+  if (current) return current
+  if (mappedDate) return mappedDate
+  return null
+}
+
+export function shiftIsoDateTimeByDays(iso: string, days: number): string {
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return iso
+  date.setUTCDate(date.getUTCDate() + days)
+  return date.toISOString()
+}
+
+export function shiftPreviewReservationsToDate(
+  payload: CaixaReservationListResponse,
+  today: string,
+): CaixaReservationListResponse {
+  const days = daysBetweenCivil(payload.date, today)
+  if (days == null || days === 0) return payload
+  return {
+    ...payload,
+    date: today,
+    items: payload.items.map((item) => ({
+      ...item,
+      local_date: shiftCivilDate(item.local_date, days),
+      starts_at: shiftIsoDateTimeByDays(item.starts_at, days),
+      ends_at: shiftIsoDateTimeByDays(item.ends_at, days),
+    })),
+  }
+}
+
+export function shiftPreviewInboxToDate(
+  inbox: CaixaReservationInboxResponse,
+  days: number,
+): CaixaReservationInboxResponse {
+  if (!days) return inbox
+  return {
+    ...inbox,
+    items: inbox.items.map((item) => ({
+      ...item,
+      local_date: shiftCivilDate(item.local_date, days),
+      starts_at: shiftIsoDateTimeByDays(item.starts_at, days),
+      ends_at: shiftIsoDateTimeByDays(item.ends_at, days),
+    })),
+  }
+}
+
 export function formatCivilDateShort(iso: string): string {
   const date = civilDateFromParts(iso)
   if (!date) return iso
@@ -341,6 +393,12 @@ export function listLineExposesFullPhone(
   if (digits.length >= 8 && line.includes(digits)) return true
   if (phone.length >= 8 && line.includes(phone)) return true
   return false
+}
+
+export function listCallHref(
+  item: Pick<CaixaReservationItem, "phone_canonical">,
+): string | null {
+  return item.phone_canonical ? `tel:${item.phone_canonical}` : null
 }
 
 export function statusQuery(filter: ReservationFilter): string {

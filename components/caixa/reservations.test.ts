@@ -15,13 +15,18 @@ import {
   formatSummaryLine,
   listLineExposesFullPhone,
   listPhoneMask,
+  listCallHref,
   mapReservationInbox,
   mapReservationList,
   pendingFutureBannerCopy,
   PREVIEW_INBOX,
   PREVIEW_RESERVATIONS,
+  PRESENCE_BLOCKED_TOAST,
   postThenRefetch,
+  rememberStoreToday,
   resolveCaixaActionIntent,
+  shiftPreviewInboxToDate,
+  shiftPreviewReservationsToDate,
   shouldPollReservations,
   shouldShowReservationsBlock,
   sortReservationsByStartsAt,
@@ -77,20 +82,19 @@ describe("capacityLabel", () => {
 })
 
 describe("actionsForStatus", () => {
-  it("matches the caixa action matrix", () => {
+  it("matches the caixa action matrix and fail-closes presence", () => {
     expect(actionsForStatus("pending")).toEqual([
       "confirm",
       "decline",
       "cancel",
     ])
-    expect(actionsForStatus("confirmed")).toEqual([
-      "seat",
-      "no_show",
-      "cancel",
-    ])
+    expect(actionsForStatus("confirmed")).toEqual(["cancel"])
     expect(
       actionsForStatus("confirmed", { canMarkPresence: false }),
     ).toEqual(["cancel"])
+    expect(
+      actionsForStatus("confirmed", { canMarkPresence: true }),
+    ).toEqual(["seat", "no_show", "cancel"])
     expect(actionsForStatus("seated")).toEqual([])
     expect(actionsForStatus("declined")).toEqual([])
   })
@@ -142,6 +146,7 @@ describe("resolveCaixaActionIntent", () => {
     expect(
       resolveCaixaActionIntent(future, "cancel", "America/Sao_Paulo", now),
     ).toBe("post")
+    expect(PRESENCE_BLOCKED_TOAST).toBe("Disponível no dia da reserva.")
   })
 
   it("still posts seat on the store civil day", () => {
@@ -164,12 +169,14 @@ describe("filaChipLabel", () => {
 })
 
 describe("list phone", () => {
-  it("masks last 4 and never puts the full number on the list line", () => {
+  it("masks the visible line while the tel href still carries the full number", () => {
     const item = PREVIEW_RESERVATIONS.items[0]
     const line = formatReservationListLine(item)
     expect(listPhoneMask(item.phone_canonical)).toBe("····4321")
     expect(line).toContain("····4321")
     expect(listLineExposesFullPhone(item, line)).toBe(false)
+    expect(listCallHref(item)).toBe(`tel:${item.phone_canonical}`)
+    expect(item.phone_canonical).toBe("11987654321")
   })
 })
 
@@ -377,6 +384,43 @@ describe("dayReservationsQuery", () => {
         filter: "fila",
       }),
     ).toBe("?date=2026-09-18")
+    expect(
+      dayReservationsQuery({
+        date: "2026-09-30",
+        today: null,
+        filter: "fila",
+      }),
+    ).toBe("")
+  })
+})
+
+describe("rememberStoreToday", () => {
+  it("captures the first mapped date even if another day is already selected", () => {
+    expect(rememberStoreToday(null, "2026-09-18")).toBe("2026-09-18")
+    expect(rememberStoreToday("2026-09-18", "2026-09-30")).toBe("2026-09-18")
+    expect(rememberStoreToday(null, null)).toBeNull()
+  })
+})
+
+describe("shiftPreviewReservationsToDate", () => {
+  it("moves fixture dates to store-today so presence can show in preview", () => {
+    const today = "2026-09-18"
+    const now = new Date("2026-09-18T15:00:00.000Z")
+    const shifted = shiftPreviewReservationsToDate(PREVIEW_RESERVATIONS, today)
+    expect(shifted.date).toBe(today)
+    const confirmed = shifted.items.find((item) => item.status === "confirmed")
+    expect(confirmed?.local_date).toBe(today)
+    expect(
+      canMarkPresence(confirmed?.local_date, shifted.timezone, now),
+    ).toBe(true)
+    expect(actionsForStatus("confirmed", { canMarkPresence: true })).toEqual([
+      "seat",
+      "no_show",
+      "cancel",
+    ])
+    const days = 1
+    const inbox = shiftPreviewInboxToDate(PREVIEW_INBOX, days)
+    expect(inbox.items[0].local_date).toBe("2026-09-19")
   })
 })
 
