@@ -128,7 +128,17 @@ export function civilTodayInTimeZone(
 ): string | null {
   if (!timeZone) return null
   try {
-    return new Intl.DateTimeFormat("en-CA", { timeZone }).format(now)
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(now)
+    const year = parts.find((part) => part.type === "year")?.value
+    const month = parts.find((part) => part.type === "month")?.value
+    const day = parts.find((part) => part.type === "day")?.value
+    if (!year || !month || !day) return null
+    return `${year}-${month}-${day}`
   } catch {
     return null
   }
@@ -142,6 +152,31 @@ export function canMarkPresence(
   const today = civilTodayInTimeZone(timeZone, now)
   if (!today || !localDate) return false
   return localDate === today
+}
+
+export type CaixaActionIntent =
+  | "block"
+  | "confirm_without_vacancy"
+  | "decline"
+  | "post"
+
+export function resolveCaixaActionIntent(
+  item: Pick<CaixaReservationItem, "local_date" | "capacity_available">,
+  action: ReservationAction,
+  timeZone: string | null | undefined,
+  now = new Date(),
+): CaixaActionIntent {
+  if (
+    (action === "seat" || action === "no_show") &&
+    !canMarkPresence(item.local_date, timeZone, now)
+  ) {
+    return "block"
+  }
+  if (action === "confirm" && item.capacity_available === false) {
+    return "confirm_without_vacancy"
+  }
+  if (action === "decline") return "decline"
+  return "post"
 }
 
 export function filaChipLabel(isToday: boolean): string {

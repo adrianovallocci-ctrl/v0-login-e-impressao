@@ -21,6 +21,7 @@ import {
   PREVIEW_INBOX,
   PREVIEW_RESERVATIONS,
   postThenRefetch,
+  resolveCaixaActionIntent,
   shouldPollReservations,
   shouldShowReservationsBlock,
   sortReservationsByStartsAt,
@@ -107,6 +108,51 @@ describe("canMarkPresence", () => {
     expect(
       canMarkPresence("2026-09-30", "America/Sao_Paulo", almostMidnightUtc),
     ).toBe(false)
+  })
+
+  it("fail-closes when timezone is missing or invalid", () => {
+    const now = new Date("2026-09-18T15:00:00.000Z")
+    expect(civilTodayInTimeZone(null, now)).toBeNull()
+    expect(civilTodayInTimeZone(undefined, now)).toBeNull()
+    expect(civilTodayInTimeZone("", now)).toBeNull()
+    expect(civilTodayInTimeZone("Not/AZone", now)).toBeNull()
+    expect(canMarkPresence("2026-09-18", null, now)).toBe(false)
+    expect(canMarkPresence("2026-09-18", "Not/AZone", now)).toBe(false)
+  })
+})
+
+describe("resolveCaixaActionIntent", () => {
+  const now = new Date("2026-09-18T15:00:00.000Z")
+  const future = {
+    local_date: "2026-09-30",
+    capacity_available: true,
+  }
+  const todayConfirmed = {
+    local_date: "2026-09-18",
+    capacity_available: true,
+  }
+
+  it("does not dispatch seat or no-show when the reservation is not store-today", () => {
+    expect(
+      resolveCaixaActionIntent(future, "seat", "America/Sao_Paulo", now),
+    ).toBe("block")
+    expect(
+      resolveCaixaActionIntent(future, "no_show", "America/Sao_Paulo", now),
+    ).toBe("block")
+    expect(
+      resolveCaixaActionIntent(future, "cancel", "America/Sao_Paulo", now),
+    ).toBe("post")
+  })
+
+  it("still posts seat on the store civil day", () => {
+    expect(
+      resolveCaixaActionIntent(
+        todayConfirmed,
+        "seat",
+        "America/Sao_Paulo",
+        now,
+      ),
+    ).toBe("post")
   })
 })
 

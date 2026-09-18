@@ -24,6 +24,7 @@ import {
   mapReservationList,
   pendingFutureBannerCopy,
   postThenRefetch,
+  resolveCaixaActionIntent,
   shiftCivilDate,
   shouldPollReservations,
   shouldShowReservationsBlock,
@@ -192,6 +193,7 @@ export function ReservationsBlock({
   const [documentVisible, setDocumentVisible] = useState(true)
 
   const sessionActive = Boolean(token) || Boolean(preview)
+  const storeTz = payload?.timezone ?? inbox?.timezone ?? null
 
   const loadDay = useCallback(
     async (opts?: { silent?: boolean }) => {
@@ -388,30 +390,24 @@ export function ReservationsBlock({
 
   const handleAction = useCallback(
     (item: CaixaReservationItem, action: ReservationAction) => {
-      const timeZone = payload?.timezone ?? inbox?.timezone ?? null
-      if (
-        (action === "seat" || action === "no_show") &&
-        !canMarkPresence(item.local_date, timeZone)
-      ) {
-        return
-      }
-      if (action === "confirm" && item.capacity_available === false) {
+      const intent = resolveCaixaActionIntent(item, action, storeTz)
+      if (intent === "block") return
+      if (intent === "confirm_without_vacancy") {
         setConfirmWithoutVacancy(item)
         return
       }
-      if (action === "decline") {
+      if (intent === "decline") {
         setDeclineNote("")
         setDeclineTarget(item)
         return
       }
       void postAction(item, action)
     },
-    [postAction, payload?.timezone, inbox?.timezone],
+    [postAction, storeTz],
   )
 
   const items = payload?.items ?? []
   const inboxItems = inbox?.items ?? []
-  const storeTz = payload?.timezone ?? inbox?.timezone ?? null
   const hojeLoja = civilTodayInTimeZone(storeTz)
   const viewingDate = selectedDate ?? payload?.date ?? storeToday
   const viewingToday = Boolean(hojeLoja && viewingDate === hojeLoja)
@@ -501,7 +497,7 @@ export function ReservationsBlock({
                 key={`inbox-${item.id}`}
                 item={item}
                 todayIso={hojeLoja ?? storeToday}
-                timeZone={inbox?.timezone ?? storeTz}
+                timeZone={storeTz}
                 expanded={expandedId === item.id}
                 actionBusy={actionBusy}
                 onToggle={() =>
@@ -605,7 +601,7 @@ export function ReservationsBlock({
               key={item.id}
               item={item}
               todayIso={hojeLoja ?? storeToday}
-              timeZone={payload?.timezone ?? storeTz}
+              timeZone={storeTz}
               expanded={expandedId === item.id}
               actionBusy={actionBusy}
               onToggle={() =>
