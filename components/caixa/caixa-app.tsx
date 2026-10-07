@@ -19,7 +19,7 @@ import { TenantNotFoundScreen } from "@/components/caixa/tenant-not-found-screen
 import type { EstablishmentView } from "@/components/caixa/types"
 
 export function CaixaShell({ companyId }: { companyId: string }) {
-  const { token, preview, ready, clearToken } = useAuth()
+  const { token, sessionId, preview, ready, clearToken } = useAuth()
   const [entry, setEntry] = useState<CashierEntry | null>(null)
   const [loadedCapabilities, setLoadedCapabilities] =
     useState<LoadedPrintCapabilities | null>(null)
@@ -54,7 +54,7 @@ export function CaixaShell({ companyId }: { companyId: string }) {
 
         const payload: unknown = await response.json()
         if (!active) return
-        const next = readCashierEntry(payload)
+        const next = readCashierEntry(payload, companyId)
         if (!next) return
         setEntry(next)
       } catch {
@@ -69,9 +69,10 @@ export function CaixaShell({ companyId }: { companyId: string }) {
   }, [companyId])
 
   useEffect(() => {
-    if (!token) return
+    if (sessionId == null || !token) return
 
     let active = true
+    const capturedSessionId = sessionId
     const sessionToken = token
     const controller = new AbortController()
 
@@ -97,7 +98,7 @@ export function CaixaShell({ companyId }: { companyId: string }) {
         const payload: unknown = await response.json()
         if (!active) return
         setLoadedCapabilities({
-          token: sessionToken,
+          sessionId: capturedSessionId,
           flags: readPrintCapabilities(payload),
         })
       } catch {
@@ -109,7 +110,7 @@ export function CaixaShell({ companyId }: { companyId: string }) {
       active = false
       controller.abort()
     }
-  }, [token, clearToken])
+  }, [sessionId, token, clearToken])
 
   if (!ready) {
     return <div className="min-h-dvh bg-muted/40" aria-hidden="true" />
@@ -119,7 +120,7 @@ export function CaixaShell({ companyId }: { companyId: string }) {
     return <TenantNotFoundScreen />
   }
 
-  const capabilities = capabilitiesForSession(loadedCapabilities, token)
+  const capabilities = capabilitiesForSession(loadedCapabilities, sessionId)
   const establishment: EstablishmentView = {
     name: entry?.name ?? null,
     logo_url: entry?.logo_url ?? null,

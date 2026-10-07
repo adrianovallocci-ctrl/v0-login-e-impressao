@@ -1,6 +1,6 @@
 export type CashierEntry = {
   company_id: string
-  name: string
+  name: string | null
   logo_url: string | null
 }
 
@@ -15,15 +15,17 @@ export const HIDDEN_PRINT_CAPABILITIES: PrintCapabilityFlags = {
 }
 
 export type LoadedPrintCapabilities = {
-  token: string
+  sessionId: number
   flags: PrintCapabilityFlags
 }
 
 export function capabilitiesForSession(
   loaded: LoadedPrintCapabilities | null,
-  token: string | null,
+  sessionId: number | null,
 ): PrintCapabilityFlags {
-  if (!token || !loaded || loaded.token !== token) return HIDDEN_PRINT_CAPABILITIES
+  if (sessionId == null || !loaded || loaded.sessionId !== sessionId) {
+    return HIDDEN_PRINT_CAPABILITIES
+  }
   return loaded.flags
 }
 
@@ -33,10 +35,13 @@ export function cashierEntryUrl(companyId: string): string {
 
 export const PRINT_CAPABILITIES_URL = "/api/proxy/collaborator/print-capabilities"
 
-export function readCashierEntry(payload: unknown): CashierEntry | null {
+export function readCashierEntry(
+  payload: unknown,
+  companyId: string,
+): CashierEntry | null {
   if (!payload || typeof payload !== "object") return null
   const record = payload as Record<string, unknown>
-  if (typeof record.company_id !== "string" || record.company_id.length === 0) {
+  if (typeof record.company_id !== "string" || record.company_id !== companyId) {
     return null
   }
   if (typeof record.name !== "string") return null
@@ -44,7 +49,7 @@ export function readCashierEntry(payload: unknown): CashierEntry | null {
   if (logo != null && typeof logo !== "string") return null
   return {
     company_id: record.company_id,
-    name: record.name,
+    name: record.name.trim() === "" ? null : record.name,
     logo_url: typeof logo === "string" ? logo : null,
   }
 }

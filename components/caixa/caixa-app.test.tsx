@@ -162,13 +162,20 @@ describe("entrada própria do caixa", () => {
   let capsQueue: CapsImpl[]
   let entryImpl: EntryImpl
 
+  function ObservedShell() {
+    useAuth()
+    return (
+      <Profiler id="caixa" onRender={rememberPaint}>
+        <CaixaShell companyId={COMPANY_ID} />
+        <AuthBridge handleRef={handle} />
+      </Profiler>
+    )
+  }
+
   function renderShell() {
     return render(
       <AuthProvider companyId={COMPANY_ID}>
-        <Profiler id="caixa" onRender={rememberPaint}>
-          <CaixaShell companyId={COMPANY_ID} />
-          <AuthBridge handleRef={handle} />
-        </Profiler>
+        <ObservedShell />
       </AuthProvider>,
     )
   }
@@ -252,7 +259,7 @@ describe("entrada própria do caixa", () => {
     expect(entryCalls()[0]?.url).toBe(ENTRY)
     expect(capsCalls()).toHaveLength(0)
     expect(calls.some((call) => call.url.includes("/app/establishment/"))).toBe(false)
-    expect(readCashierEntry(payload)).toEqual({
+    expect(readCashierEntry(payload, COMPANY_ID)).toEqual({
       company_id: COMPANY_ID,
       name: STORE,
       logo_url: LOGO,
@@ -530,12 +537,29 @@ describe("entrada própria do caixa", () => {
     expectColumns(false, false)
     expect(capsCalls()).toHaveLength(1)
 
-    capsQueue.push(() => json(flags(true, false)))
-    act(() => handle.current!.setToken("sess-a"))
+    const again = deferred<Response>()
+    capsQueue.push(() => again.promise)
+    const reloginAt = paints.length
+    act(() => {
+      flushSync(() => {
+        handle.current!.setToken("sess-a")
+      })
+    })
+    expect(paints[reloginAt]).toMatchObject({
+      loyalty: false,
+      vitrine: false,
+      qr: false,
+      vitrineButton: false,
+    })
+    expect(screen.getByRole("button", { name: "Sair" })).toBeTruthy()
+    expectColumns(false, false)
+    await waitFor(() => expect(capsCalls()).toHaveLength(2))
+    expect(authorization(capsCalls()[1]?.init)).toBe("Bearer sess-a")
+    expectColumns(false, false)
+
+    again.resolve(json(flags(true, false)))
     expect(await screen.findByRole("button", { name: QR })).toBeTruthy()
     expect(screen.queryByRole("button", { name: VITRINE })).toBeNull()
-    expect(capsCalls()).toHaveLength(2)
-    expect(authorization(capsCalls()[1]?.init)).toBe("Bearer sess-a")
   })
 
   it("12. nome e logo continuam no login e no dashboard", async () => {
@@ -717,5 +741,145 @@ describe("entrada própria do caixa", () => {
     act(() => handle.current!.setToken("sess-b"))
     expect(await screen.findByRole("button", { name: VITRINE })).toBeTruthy()
     expect(screen.queryByRole("button", { name: QR })).toBeNull()
+  })
+
+  it("a. o mesmo token depois do logout começa false/false", async () => {
+    renderShell()
+    expect(await screen.findByRole("button", { name: "Entrar" })).toBeTruthy()
+
+    const pending = deferred<Response>()
+    capsQueue.push(() => json(flags(true, false)), () => pending.promise)
+    act(() => handle.current!.setToken("sess-a"))
+    expect(await screen.findByRole("button", { name: QR })).toBeTruthy()
+    expect(screen.queryByRole("button", { name: VITRINE })).toBeNull()
+
+    const logoutAt = paints.length
+    act(() => {
+      flushSync(() => {
+        handle.current!.clearToken()
+      })
+    })
+    expect(paints[logoutAt]).toMatchObject({
+      loyalty: false,
+      vitrine: false,
+      qr: false,
+      vitrineButton: false,
+    })
+    expect(screen.getByRole("button", { name: "Entrar" })).toBeTruthy()
+
+    const loginAt = paints.length
+    act(() => {
+      flushSync(() => {
+        handle.current!.setToken("sess-a")
+      })
+    })
+    expect(paints[loginAt]).toMatchObject({
+      loyalty: false,
+      vitrine: false,
+      qr: false,
+      vitrineButton: false,
+    })
+    expect(screen.getByRole("button", { name: "Sair" })).toBeTruthy()
+    expectColumns(false, false)
+    await waitFor(() => expect(capsCalls()).toHaveLength(2))
+    expect(authorization(capsCalls()[1]?.init)).toBe("Bearer sess-a")
+    expectColumns(false, false)
+
+    pending.resolve(json(flags(false, true)))
+    expect(await screen.findByRole("button", { name: VITRINE })).toBeTruthy()
+    expect(screen.queryByRole("button", { name: QR })).toBeNull()
+  })
+
+  it("b. falha da leitura nova não devolve a coluna antiga", async () => {
+    renderShell()
+    expect(await screen.findByRole("button", { name: "Entrar" })).toBeTruthy()
+
+    const failed = deferred<Response>()
+    capsQueue.push(() => json(flags(true, false)), () => failed.promise)
+    act(() => handle.current!.setToken("sess-a"))
+    expect(await screen.findByRole("button", { name: QR })).toBeTruthy()
+    expect(screen.queryByRole("button", { name: VITRINE })).toBeNull()
+
+    const logoutAt = paints.length
+    act(() => {
+      flushSync(() => {
+        handle.current!.clearToken()
+      })
+    })
+    expect(paints[logoutAt]).toMatchObject({
+      loyalty: false,
+      vitrine: false,
+      qr: false,
+      vitrineButton: false,
+    })
+
+    const loginAt = paints.length
+    act(() => {
+      flushSync(() => {
+        handle.current!.setToken("sess-a")
+      })
+    })
+    expect(paints[loginAt]).toMatchObject({
+      loyalty: false,
+      vitrine: false,
+      qr: false,
+      vitrineButton: false,
+    })
+    expect(screen.getByRole("button", { name: "Sair" })).toBeTruthy()
+    expectColumns(false, false)
+    await waitFor(() => expect(capsCalls()).toHaveLength(2))
+    expectColumns(false, false)
+
+    failed.resolve(json({ detail: "falha" }, 500))
+    await settle()
+    expectColumns(false, false)
+    expect(screen.queryByRole("button", { name: QR })).toBeNull()
+    expect(screen.queryByRole("button", { name: VITRINE })).toBeNull()
+  })
+
+  it("recusa cashier-entry cujo company_id difere do pedido", async () => {
+    const foreignId = "22222222-2222-4222-8222-222222222222"
+    const foreign = entryBody({ company_id: foreignId, name: "Outra Loja" })
+    expect(readCashierEntry(foreign, COMPANY_ID)).toBeNull()
+    expect(readCashierEntry(entryBody(), COMPANY_ID)).toEqual({
+      company_id: COMPANY_ID,
+      name: STORE,
+      logo_url: LOGO,
+    })
+
+    entryImpl = () => json(foreign)
+    renderShell()
+    expect(await screen.findByRole("button", { name: "Entrar" })).toBeTruthy()
+    expect(screen.getByText("Caixa · Fidelidade")).toBeTruthy()
+    expect(screen.queryByText("Outra Loja")).toBeNull()
+    expect(screen.queryByText("Loja não encontrada")).toBeNull()
+  })
+
+  it("nome vazio ou só espaços fica sem nome", async () => {
+    expect(readCashierEntry(entryBody({ name: "" }), COMPANY_ID)).toEqual({
+      company_id: COMPANY_ID,
+      name: null,
+      logo_url: LOGO,
+    })
+    expect(readCashierEntry(entryBody({ name: "   " }), COMPANY_ID)).toEqual({
+      company_id: COMPANY_ID,
+      name: null,
+      logo_url: LOGO,
+    })
+    expect(readCashierEntry(entryBody({ name: " Padaria " }), COMPANY_ID)?.name).toBe(
+      " Padaria ",
+    )
+
+    entryImpl = () => json(entryBody({ name: "   " }))
+    renderShell()
+    expect(await screen.findByText("Caixa · Fidelidade")).toBeTruthy()
+    expect(screen.queryByText(STORE)).toBeNull()
+    expect(screen.getByRole("button", { name: "Entrar" })).toBeTruthy()
+
+    cleanup()
+    entryImpl = () => json(entryBody({ name: "" }))
+    renderShell()
+    expect(await screen.findByText("Caixa · Fidelidade")).toBeTruthy()
+    expect(screen.queryByText(STORE)).toBeNull()
   })
 })
