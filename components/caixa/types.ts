@@ -1,5 +1,5 @@
 export type EstablishmentView = {
-  name: string
+  name: string | null
   logo_url: string | null
   loyaltyCheckinEnabled: boolean
   vitrineCouponEnabled: boolean
@@ -33,18 +33,6 @@ export function formatRewardWhen(iso: string): string {
     hour: "2-digit",
     minute: "2-digit",
   })
-}
-
-export function readCapability(
-  caps: Record<string, unknown>,
-  root: Record<string, unknown>,
-  keys: string[],
-): boolean {
-  for (const key of keys) {
-    if (key in caps && caps[key] != null) return Boolean(caps[key])
-    if (key in root && root[key] != null) return Boolean(root[key])
-  }
-  return false
 }
 
 export type ApiErrorDetail = {
