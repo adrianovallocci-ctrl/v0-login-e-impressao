@@ -37,10 +37,10 @@ type AuthHandle = {
   enterPreview: () => void
 }
 
-function AuthBridge({ handle }: { handle: { current: AuthHandle | null } }) {
+function AuthBridge({ handleRef }: { handleRef: { current: AuthHandle | null } }) {
   const auth = useAuth()
   useEffect(() => {
-    handle.current = {
+    handleRef.current = {
       ready: auth.ready,
       setToken: auth.setToken,
       clearToken: auth.clearToken,
@@ -167,7 +167,7 @@ describe("entrada própria do caixa", () => {
       <AuthProvider companyId={COMPANY_ID}>
         <Profiler id="caixa" onRender={rememberPaint}>
           <CaixaShell companyId={COMPANY_ID} />
-          <AuthBridge handle={handle} />
+          <AuthBridge handleRef={handle} />
         </Profiler>
       </AuthProvider>,
     )
