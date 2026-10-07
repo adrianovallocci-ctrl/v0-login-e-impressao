@@ -6,10 +6,18 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   quality:
     name: lint, types, tests, build
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -17,8 +25,8 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          # Mesma versão que rodou os portões nesta máquina. Next 16.2 aceita >=20.9.0.
-          node-version: "26.0.0"
+          # .nvmrc é a versão maior da produção. Vercel, projeto v0-login-e-impressao: 24.x.
+          node-version-file: .nvmrc
           cache: npm
 
       - name: Install
