@@ -1,75 +1,116 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { toast } from "sonner"
 
 import { AuthProvider, useAuth } from "@/components/caixa/auth-provider"
+import {
+  capabilitiesForSession,
+  cashierEntryUrl,
+  PRINT_CAPABILITIES_URL,
+  readCashierEntry,
+  readPrintCapabilities,
+  type CashierEntry,
+  type LoadedPrintCapabilities,
+} from "@/components/caixa/cashier-entry"
 import { DashboardScreen } from "@/components/caixa/dashboard-screen"
 import { LoginScreen } from "@/components/caixa/login-screen"
 import { TenantNotFoundScreen } from "@/components/caixa/tenant-not-found-screen"
-import { readCapability, type EstablishmentView } from "@/components/caixa/types"
+import type { EstablishmentView } from "@/components/caixa/types"
 
-function CaixaShell({ companyId }: { companyId: string }) {
-  const { token, preview, ready } = useAuth()
-  const [establishment, setEstablishment] = useState<EstablishmentView | null>(
-    null,
-  )
+export function CaixaShell({ companyId }: { companyId: string }) {
+  const { token, sessionId, preview, ready, clearToken } = useAuth()
+  const [entry, setEntry] = useState<CashierEntry | null>(null)
+  const [loadedCapabilities, setLoadedCapabilities] =
+    useState<LoadedPrintCapabilities | null>(null)
   const [tenantMissing, setTenantMissing] = useState(false)
 
   useEffect(() => {
     if (!companyId) {
+      setEntry(null)
       setTenantMissing(true)
       return
     }
 
     let active = true
+    const controller = new AbortController()
+    setEntry(null)
+    setTenantMissing(false)
+
     ;(async () => {
       try {
-        const response = await fetch(
-          `/api/proxy/app/establishment/${companyId}`,
-          { headers: { accept: "application/json" } },
-        )
-
-        if (!response.ok) {
-          if (response.status === 404 || response.status === 422) {
-            if (active) setTenantMissing(true)
-          }
-          return
-        }
-
-        const payload = await response.json()
-        const data = payload.data ?? payload
-        const caps = (data.print_capabilities ?? data.printCapabilities ?? {}) as Record<
-          string,
-          unknown
-        >
-
+        const response = await fetch(cashierEntryUrl(companyId), {
+          headers: { accept: "application/json" },
+          cache: "no-store",
+          signal: controller.signal,
+        })
         if (!active) return
 
-        setEstablishment({
-          name: String(
-            data.name ?? data.fantasy_name ?? data.company_name ?? "Estabelecimento",
-          ),
-          logo_url: (data.logo_url ?? data.logoUrl ?? data.logo ?? null) as
-            | string
-            | null,
-          loyaltyCheckinEnabled: readCapability(caps, data as Record<string, unknown>, [
-            "loyalty_checkin_enabled",
-            "loyaltyCheckinEnabled",
-          ]),
-          vitrineCouponEnabled: readCapability(caps, data as Record<string, unknown>, [
-            "vitrine_coupon_enabled",
-            "vitrineCouponEnabled",
-          ]),
-        })
+        if (response.status === 404 || response.status === 422) {
+          setTenantMissing(true)
+          return
+        }
+        if (!response.ok) return
+
+        const payload: unknown = await response.json()
+        if (!active) return
+        const next = readCashierEntry(payload, companyId)
+        if (!next) return
+        setEntry(next)
       } catch {
-        /* network errors keep login shell */
+        /* network errors keep the login shell */
       }
     })()
 
     return () => {
       active = false
+      controller.abort()
     }
   }, [companyId])
+
+  useEffect(() => {
+    if (sessionId == null || !token) return
+
+    let active = true
+    const capturedSessionId = sessionId
+    const sessionToken = token
+    const controller = new AbortController()
+
+    ;(async () => {
+      try {
+        const response = await fetch(PRINT_CAPABILITIES_URL, {
+          headers: {
+            accept: "application/json",
+            authorization: `Bearer ${sessionToken}`,
+          },
+          cache: "no-store",
+          signal: controller.signal,
+        })
+        if (!active) return
+
+        if (response.status === 401) {
+          toast.error("Sessão expirada. Faça login novamente.")
+          clearToken()
+          return
+        }
+        if (!response.ok) return
+
+        const payload: unknown = await response.json()
+        if (!active) return
+        setLoadedCapabilities({
+          sessionId: capturedSessionId,
+          flags: readPrintCapabilities(payload),
+        })
+      } catch {
+        /* failure keeps both columns hidden */
+      }
+    })()
+
+    return () => {
+      active = false
+      controller.abort()
+    }
+  }, [sessionId, token, clearToken])
 
   if (!ready) {
     return <div className="min-h-dvh bg-muted/40" aria-hidden="true" />
@@ -79,11 +120,30 @@ function CaixaShell({ companyId }: { companyId: string }) {
     return <TenantNotFoundScreen />
   }
 
-  if (token || preview) {
-    return <DashboardScreen establishment={establishment} />
+  const capabilities = capabilitiesForSession(loadedCapabilities, sessionId)
+  const establishment: EstablishmentView = {
+    name: entry?.name ?? null,
+    logo_url: entry?.logo_url ?? null,
+    loyaltyCheckinEnabled: capabilities.loyaltyCheckinEnabled,
+    vitrineCouponEnabled: capabilities.vitrineCouponEnabled,
   }
 
-  return <LoginScreen companyId={companyId} establishment={establishment} />
+  const screen =
+    token || preview ? (
+      <DashboardScreen establishment={establishment} />
+    ) : (
+      <LoginScreen companyId={companyId} establishment={establishment} />
+    )
+
+  return (
+    <div
+      style={{ display: "contents" }}
+      data-loyalty-checkin={capabilities.loyaltyCheckinEnabled ? "true" : "false"}
+      data-vitrine-coupon={capabilities.vitrineCouponEnabled ? "true" : "false"}
+    >
+      {screen}
+    </div>
+  )
 }
 
 export function CaixaApp({ companyId }: { companyId: string }) {

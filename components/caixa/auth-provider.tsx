@@ -10,13 +10,26 @@ import {
   type ReactNode,
 } from "react"
 
+type AuthSession = {
+  id: number
+  token: string
+}
+
 type AuthContextValue = {
   token: string | null
+  sessionId: number | null
   preview: boolean
   ready: boolean
   setToken: (token: string) => void
   clearToken: () => void
   enterPreview: () => void
+}
+
+let nextSessionId = 0
+
+function openSession(token: string): AuthSession {
+  nextSessionId += 1
+  return { id: nextSessionId, token }
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -29,16 +42,17 @@ export function AuthProvider({
   children: ReactNode
 }) {
   const storageKey = `caixa_token:${companyId || "default"}`
-  const [token, setTokenState] = useState<string | null>(null)
+  const [session, setSession] = useState<AuthSession | null>(null)
   const [preview, setPreview] = useState(false)
   const [ready, setReady] = useState(false)
 
   useEffect(() => {
     setReady(false)
     try {
-      setTokenState(sessionStorage.getItem(storageKey))
+      const stored = sessionStorage.getItem(storageKey)
+      setSession(stored ? openSession(stored) : null)
     } catch {
-      setTokenState(null)
+      setSession(null)
     }
     setPreview(false)
     setReady(true)
@@ -46,7 +60,7 @@ export function AuthProvider({
 
   const setToken = useCallback(
     (value: string) => {
-      setTokenState(value)
+      setSession(openSession(value))
       try {
         sessionStorage.setItem(storageKey, value)
       } catch {
@@ -57,7 +71,7 @@ export function AuthProvider({
   )
 
   const clearToken = useCallback(() => {
-    setTokenState(null)
+    setSession(null)
     setPreview(false)
     try {
       sessionStorage.removeItem(storageKey)
@@ -69,8 +83,16 @@ export function AuthProvider({
   const enterPreview = useCallback(() => setPreview(true), [])
 
   const value = useMemo(
-    () => ({ token, preview, ready, setToken, clearToken, enterPreview }),
-    [token, preview, ready, setToken, clearToken, enterPreview],
+    () => ({
+      token: session?.token ?? null,
+      sessionId: session?.id ?? null,
+      preview,
+      ready,
+      setToken,
+      clearToken,
+      enterPreview,
+    }),
+    [session, preview, ready, setToken, clearToken, enterPreview],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
