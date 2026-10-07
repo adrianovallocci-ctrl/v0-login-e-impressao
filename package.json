@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint .",
+    "lint": "eslint . --max-warnings 9",
+    "typecheck": "tsc --noEmit",
     "test:unit": "vitest run"
   },
   "dependencies": {
