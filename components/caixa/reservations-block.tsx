@@ -7,6 +7,7 @@ import { toast } from "sonner"
 import { useAuth } from "@/components/caixa/auth-provider"
 import {
   ACTION_LABELS,
+  CAIXA_PRINT_BUTTON_CLASS,
   CAIXA_RESERVATIONS_COLUMN_CLASS,
   PREVIEW_INBOX,
   PREVIEW_RESERVATIONS,
@@ -236,7 +237,7 @@ function ReservationItemCard({
                 key={action}
                 type="button"
                 variant={destructive ? "outline" : "default"}
-                className="h-11"
+                className="h-auto min-h-11 w-full min-w-0 whitespace-normal px-3 text-center leading-snug"
                 disabled={actionBusy != null}
                 onClick={() => onAction(item, action)}
               >
@@ -634,7 +635,7 @@ export function ReservationsBlock({
           type="button"
           disabled={!canPrint || !dateValue}
           onClick={() => void printReservationsDay()}
-          className="h-20 w-full bg-[#1B7A3A] text-lg text-white hover:bg-[#166432] focus-visible:ring-[#1B7A3A]"
+          className={`${CAIXA_PRINT_BUTTON_CLASS} bg-[#1B7A3A] text-white hover:bg-[#166432] focus-visible:ring-[#1B7A3A]`}
         >
           {printDayBusy ? (
             <>
@@ -703,7 +704,7 @@ export function ReservationsBlock({
           </Button>
           <Input
             type="date"
-            className="h-8 w-[10.5rem]"
+            className="h-8 w-[10.5rem] max-w-full"
             value={dateValue}
             onChange={(event) => {
               const next = event.target.value

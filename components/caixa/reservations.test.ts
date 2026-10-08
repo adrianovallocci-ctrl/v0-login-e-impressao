@@ -4,6 +4,7 @@ import { parseApiError, parseApiErrorDetail } from "@/components/caixa/types"
 import {
   actionsForStatus,
   caixaHomeLayoutClass,
+  CAIXA_PRINT_BUTTON_CLASS,
   CAIXA_RESERVATIONS_COLUMN_CLASS,
   canPrintReservationsDay,
   canMarkPresence,
@@ -354,9 +355,13 @@ describe("print cards stay independent", () => {
       reservations: true,
     })
     expect(layout).toContain("items-start")
+    expect(layout).toContain("min-w-0")
     expect(layout).not.toContain("items-stretch")
+    expect(CAIXA_RESERVATIONS_COLUMN_CLASS).toContain("min-w-0")
     expect(CAIXA_RESERVATIONS_COLUMN_CLASS).toContain("max-h-[calc(100dvh-6rem)]")
     expect(CAIXA_RESERVATIONS_COLUMN_CLASS).toContain("overflow-hidden")
+    expect(CAIXA_PRINT_BUTTON_CLASS).toContain("whitespace-normal")
+    expect(CAIXA_PRINT_BUTTON_CLASS).toContain("min-w-0")
   })
 })
 
