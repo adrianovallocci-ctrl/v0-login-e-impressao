@@ -1,7 +1,5 @@
 import { Store } from "lucide-react"
-import Link from "next/link"
 
-import { Button } from "@/components/ui/button"
 import {
   Card,
   CardDescription,
@@ -20,12 +18,9 @@ export default function NotFound() {
           <div className="space-y-1">
             <CardTitle className="text-xl">Loja não encontrada</CardTitle>
             <CardDescription>
-              Esse endereço não corresponde a uma loja.
+              Confira o endereço do caixa que a loja enviou.
             </CardDescription>
           </div>
-          <Button asChild className="mt-2 w-full">
-            <Link href="/">Voltar ao início</Link>
-          </Button>
         </CardHeader>
       </Card>
     </div>
