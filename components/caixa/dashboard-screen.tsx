@@ -7,7 +7,10 @@ import { toast } from "sonner"
 
 import { useAuth } from "@/components/caixa/auth-provider"
 import { ReservationsBlock } from "@/components/caixa/reservations-block"
-import { caixaHomeLayoutClass } from "@/components/caixa/reservations"
+import {
+  caixaHomeLayoutClass,
+  CAIXA_PRINT_BUTTON_CLASS,
+} from "@/components/caixa/reservations"
 import {
   formatElapsed,
   formatRewardWhen,
@@ -370,7 +373,7 @@ export function DashboardScreen({
       <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 p-4">
         <div className={homeLayoutClass}>
           {loyaltyEnabled ? (
-            <section className="flex flex-col overflow-hidden rounded-xl border bg-card shadow-sm">
+            <section className="flex min-w-0 flex-col overflow-hidden rounded-xl border bg-card shadow-sm">
               <div className="aspect-[2.4/1] bg-[#0B3D91]">
                 <img
                   src="/fidelidade-consumo-local-banner.jpg"
@@ -384,7 +387,7 @@ export function DashboardScreen({
                     <Button
                       onClick={printCheckin}
                       disabled={busy}
-                      className="h-20 w-full text-lg"
+                      className={CAIXA_PRINT_BUTTON_CLASS}
                     >
                       {checkinLoading ? (
                         <>
@@ -534,7 +537,7 @@ export function DashboardScreen({
           ) : null}
 
           {vitrineEnabled ? (
-            <section className="flex flex-col overflow-hidden rounded-xl border bg-card shadow-sm">
+            <section className="flex min-w-0 flex-col overflow-hidden rounded-xl border bg-card shadow-sm">
               <div className="aspect-[2.4/1] bg-[#F06818]">
                 <img
                   src="/Cupom-Hospedeiro.jpg"
@@ -548,7 +551,7 @@ export function DashboardScreen({
                     <Button
                       onClick={printVitrine}
                       disabled={busy}
-                      className="h-20 w-full bg-[#F06818] text-lg text-white hover:bg-[#D95A12] focus-visible:ring-[#F06818]"
+                      className={`${CAIXA_PRINT_BUTTON_CLASS} bg-[#F06818] text-white hover:bg-[#D95A12] focus-visible:ring-[#F06818]`}
                     >
                       {vitrineLoading ? (
                         <>
