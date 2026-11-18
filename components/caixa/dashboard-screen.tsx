@@ -65,6 +65,9 @@ export function DashboardScreen({
   )
   const [quantity, setQuantity] = useState(1)
   const [vitrineLoading, setVitrineLoading] = useState(false)
+  const [howtoKind, setHowtoKind] = useState<"loyalty" | "vitrine" | null>(
+    null,
+  )
   const [rewards, setRewards] = useState<LoyaltyRewardItem[]>([])
   const [rewardsLoading, setRewardsLoading] = useState(false)
   const [reprintingId, setReprintingId] = useState<string | null>(null)
@@ -76,7 +79,11 @@ export function DashboardScreen({
 
   const loyaltyEnabled = establishment?.loyaltyCheckinEnabled ?? false
   const vitrineEnabled = establishment?.vitrineCouponEnabled ?? false
-  const busy = checkinLoading || vitrineLoading || reprintingId != null
+  const busy =
+    checkinLoading ||
+    vitrineLoading ||
+    reprintingId != null ||
+    howtoKind != null
   const homeLayoutClass = caixaHomeLayoutClass({
     loyalty: loyaltyEnabled,
     vitrine: vitrineEnabled,
@@ -320,6 +327,57 @@ export function DashboardScreen({
     [preview, token, clearToken, loadRewards],
   )
 
+  const printHowto = useCallback(
+    async (kind: "loyalty" | "vitrine") => {
+      if (preview && !token) {
+        toast.info("Modo teste — faça login para imprimir.")
+        return
+      }
+
+      setHowtoKind(kind)
+      try {
+        const response = await fetch("/api/proxy/collaborator/print-howto", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ kind }),
+        })
+
+        if (!response.ok) {
+          if (response.status === 401) {
+            toast.error("Sessão expirada. Faça login novamente.")
+            clearToken()
+            return
+          }
+          const detail = await parseApiError(response)
+          if (response.status === 403 || response.status === 409) {
+            toast.error("Guia indisponível", {
+              description: detail ?? "Este guia não está disponível para a loja.",
+            })
+          } else if (response.status === 404) {
+            toast.error("Impressão indisponível. Tente novamente em instantes.", {
+              description: detail ?? undefined,
+            })
+          } else {
+            toast.error(
+              detail ?? `Não foi possível imprimir (erro ${response.status}).`,
+            )
+          }
+          return
+        }
+
+        toast.success("Guia enviado para a fila de impressão.")
+      } catch {
+        toast.error("Falha de conexão. Tente novamente.")
+      } finally {
+        setHowtoKind(null)
+      }
+    },
+    [preview, token, clearToken],
+  )
+
   const qrUrl = checkinResult?.checkin_token
     ? `https://app.cuponfood.com.br/loyalty/checkin?t=${checkinResult.checkin_token}`
     : ""
@@ -398,6 +456,29 @@ export function DashboardScreen({
                         <>
                           <Printer className="size-6" aria-hidden="true" />
                           Imprimir QR de check-in
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="mt-3 h-11 w-full"
+                      disabled={busy}
+                      aria-label="Como funciona — Fidelidade"
+                      onClick={() => void printHowto("loyalty")}
+                    >
+                      {howtoKind === "loyalty" ? (
+                        <>
+                          <Loader2
+                            className="size-4 animate-spin"
+                            aria-hidden="true"
+                          />
+                          Enviando...
+                        </>
+                      ) : (
+                        <>
+                          <Printer className="size-4" aria-hidden="true" />
+                          Como funciona
                         </>
                       )}
                     </Button>
@@ -562,6 +643,29 @@ export function DashboardScreen({
                         <>
                           <Printer className="size-6" aria-hidden="true" />
                           Imprimir Cupom Hospedeiro (Vitrine)
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="mt-3 h-11 w-full"
+                      disabled={busy}
+                      aria-label="Como funciona — Cupom Hospedeiro"
+                      onClick={() => void printHowto("vitrine")}
+                    >
+                      {howtoKind === "vitrine" ? (
+                        <>
+                          <Loader2
+                            className="size-4 animate-spin"
+                            aria-hidden="true"
+                          />
+                          Enviando...
+                        </>
+                      ) : (
+                        <>
+                          <Printer className="size-4" aria-hidden="true" />
+                          Como funciona
                         </>
                       )}
                     </Button>
