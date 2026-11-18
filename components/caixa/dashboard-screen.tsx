@@ -646,6 +646,25 @@ export function DashboardScreen({
                         </>
                       )}
                     </Button>
+                    <div className="mt-3 flex items-center justify-center gap-3">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                        disabled={quantity <= 1 || busy}
+                      >
+                        −
+                      </Button>
+                      <span className="min-w-8 text-center font-medium">{quantity}</span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setQuantity((q) => Math.min(10, q + 1))}
+                        disabled={quantity >= 10 || busy}
+                      >
+                        +
+                      </Button>
+                    </div>
                     <Button
                       type="button"
                       variant="outline"
@@ -669,25 +688,6 @@ export function DashboardScreen({
                         </>
                       )}
                     </Button>
-                    <div className="mt-3 flex items-center justify-center gap-3">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                        disabled={quantity <= 1 || busy}
-                      >
-                        −
-                      </Button>
-                      <span className="min-w-8 text-center font-medium">{quantity}</span>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setQuantity((q) => Math.min(10, q + 1))}
-                        disabled={quantity >= 10 || busy}
-                      >
-                        +
-                      </Button>
-                    </div>
                   </CardContent>
                 </Card>
 
