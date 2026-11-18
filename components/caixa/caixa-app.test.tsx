@@ -22,8 +22,12 @@ const LOGO = "https://cdn.example/sol.png"
 const STORE = "Padaria Sol"
 const QR = "Imprimir QR de check-in"
 const VITRINE = "Imprimir Cupom Hospedeiro (Vitrine)"
+const HOWTO_LOYALTY = "Como funciona — Fidelidade"
+const HOWTO_VITRINE = "Como funciona — Cupom Hospedeiro"
+const HOWTO_RESERVATIONS = "Como funciona — Reservas"
 const ENTRY = `/api/proxy/public/cashier-entry/${COMPANY_ID}`
 const CAPS = "/api/proxy/collaborator/print-capabilities"
+const HOWTO = "/api/proxy/collaborator/print-howto"
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
 
 type FetchCall = { url: string; init?: RequestInit }
@@ -161,6 +165,7 @@ describe("entrada própria do caixa", () => {
   let calls: FetchCall[]
   let capsQueue: CapsImpl[]
   let entryImpl: EntryImpl
+  let reservationsModuleEnabled = true
 
   function ObservedShell() {
     useAuth()
@@ -192,10 +197,25 @@ describe("entrada própria do caixa", () => {
     return calls.filter((call) => call.url.includes("/caixa/reservations"))
   }
 
+  function howtoCalls() {
+    return calls.filter((call) => call.url.includes("/collaborator/print-howto"))
+  }
+
+  async function howtoBody(call: FetchCall | undefined) {
+    const raw = call?.init?.body
+    if (typeof raw !== "string") return null
+    try {
+      return JSON.parse(raw) as { kind?: string }
+    } catch {
+      return null
+    }
+  }
+
   beforeEach(() => {
     calls = []
     capsQueue = []
     paints.length = 0
+    reservationsModuleEnabled = true
     entryImpl = () => json(entryBody())
     sessionStorage.clear()
     vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -212,13 +232,23 @@ describe("entrada própria do caixa", () => {
         return json({
           date: "2026-10-07",
           timezone: "America/Sao_Paulo",
-          module_enabled: true,
+          module_enabled: reservationsModuleEnabled,
           summary: {},
           items: [],
           pending_future_count: 0,
         })
       }
       if (url.includes("/collaborator/loyalty-rewards")) return json([])
+      if (url.includes("/collaborator/print-howto")) {
+        const raw = typeof init?.body === "string" ? init.body : "{}"
+        let kind = "loyalty"
+        try {
+          kind = String((JSON.parse(raw) as { kind?: string }).kind ?? "loyalty")
+        } catch {
+          /* keep default */
+        }
+        return json({ job_id: "howto-job", kind })
+      }
       return json({ detail: "unexpected" }, 500)
     })
   })
@@ -881,5 +911,47 @@ describe("entrada própria do caixa", () => {
     renderShell()
     expect(await screen.findByText("Caixa · Fidelidade")).toBeTruthy()
     expect(screen.queryByText(STORE)).toBeNull()
+  })
+
+  it("Como funciona aparece só com o card e POST usa o kind certo", async () => {
+    sessionStorage.setItem(`caixa_token:${COMPANY_ID}`, "sess-a")
+    capsQueue.push(() => json(flags(true, false)))
+    renderShell()
+
+    expect(await screen.findByRole("button", { name: QR })).toBeTruthy()
+    expect(screen.getByRole("button", { name: HOWTO_LOYALTY })).toBeTruthy()
+    expect(screen.queryByRole("button", { name: HOWTO_VITRINE })).toBeNull()
+    expect(await screen.findByRole("button", { name: HOWTO_RESERVATIONS })).toBeTruthy()
+
+    fireEvent.click(screen.getByRole("button", { name: HOWTO_LOYALTY }))
+    await waitFor(() => expect(howtoCalls()).toHaveLength(1))
+    expect(howtoCalls()[0]?.url).toBe(HOWTO)
+    expect(howtoCalls()[0]?.init?.method).toBe("POST")
+    expect(authorization(howtoCalls()[0]?.init)).toBe("Bearer sess-a")
+    expect(await howtoBody(howtoCalls()[0])).toEqual({ kind: "loyalty" })
+
+    fireEvent.click(screen.getByRole("button", { name: HOWTO_RESERVATIONS }))
+    await waitFor(() => expect(howtoCalls()).toHaveLength(2))
+    expect(await howtoBody(howtoCalls()[1])).toEqual({ kind: "reservations" })
+
+    cleanup()
+    calls = []
+    capsQueue = []
+    reservationsModuleEnabled = false
+    sessionStorage.setItem(`caixa_token:${COMPANY_ID}`, "sess-b")
+    capsQueue.push(() => json(flags(false, true)))
+    renderShell()
+
+    expect(await screen.findByRole("button", { name: VITRINE })).toBeTruthy()
+    expect(screen.getByRole("button", { name: HOWTO_VITRINE })).toBeTruthy()
+    expect(screen.queryByRole("button", { name: HOWTO_LOYALTY })).toBeNull()
+    await waitFor(() =>
+      expect(screen.queryByRole("heading", { name: "Reservas" })).toBeNull(),
+    )
+    expect(screen.queryByRole("button", { name: HOWTO_RESERVATIONS })).toBeNull()
+
+    fireEvent.click(screen.getByRole("button", { name: HOWTO_VITRINE }))
+    await waitFor(() => expect(howtoCalls()).toHaveLength(1))
+    expect(await howtoBody(howtoCalls()[0])).toEqual({ kind: "vitrine" })
   })
 })

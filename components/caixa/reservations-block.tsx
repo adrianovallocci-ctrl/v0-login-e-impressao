@@ -272,6 +272,7 @@ export function ReservationsBlock({
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [actionBusy, setActionBusy] = useState<string | null>(null)
   const [printDayBusy, setPrintDayBusy] = useState(false)
+  const [howtoBusy, setHowtoBusy] = useState(false)
   const [confirmDialog, setConfirmDialog] = useState<{
     kind: ConfirmDialogKind
     item: CaixaReservationItem
@@ -605,6 +606,56 @@ export function ReservationsBlock({
     }
   }, [clearToken, dateValue, preview, token])
 
+  const printHowto = useCallback(async () => {
+    if (preview && !token) {
+      toast.info("Modo teste — faça login para imprimir.")
+      return
+    }
+    if (!token) return
+
+    setHowtoBusy(true)
+    try {
+      const response = await fetch("/api/proxy/collaborator/print-howto", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ kind: "reservations" }),
+      })
+
+      if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+          toast.error("Sessão expirada. Faça login novamente.")
+          clearToken()
+          return
+        }
+        if (response.status === 404) {
+          toast.error("Impressão indisponível. Tente novamente em instantes.")
+          return
+        }
+        const detail = await parseApiErrorDetail(response)
+        if (response.status === 409) {
+          toast.error(
+            detail.message ?? "Este guia não está disponível para a loja.",
+          )
+          return
+        }
+        toast.error(
+          detail.message ??
+            `Não foi possível imprimir (erro ${response.status}).`,
+        )
+        return
+      }
+
+      toast.success("Guia enviado para a fila de impressão.")
+    } catch {
+      toast.error("Falha de conexão. Tente novamente.")
+    } finally {
+      setHowtoBusy(false)
+    }
+  }, [clearToken, preview, token])
+
   const visible = useMemo(
     () => shouldShowReservationsBlock(payload?.module_enabled),
     [payload?.module_enabled],
@@ -632,7 +683,7 @@ export function ReservationsBlock({
       <div className="flex min-h-0 flex-1 flex-col gap-3 p-3">
         <Button
           type="button"
-          disabled={!canPrint || !dateValue}
+          disabled={!canPrint || !dateValue || howtoBusy}
           onClick={() => void printReservationsDay()}
           className="h-20 w-full bg-[#1B7A3A] text-lg text-white hover:bg-[#166432] focus-visible:ring-[#1B7A3A]"
         >
@@ -645,6 +696,26 @@ export function ReservationsBlock({
             <>
               <Printer className="size-6" aria-hidden="true" />
               Imprimir resumo do dia
+            </>
+          )}
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          className="h-11 w-full"
+          disabled={printDayBusy || howtoBusy || actionBusy != null}
+          aria-label="Como funciona — Reservas"
+          onClick={() => void printHowto()}
+        >
+          {howtoBusy ? (
+            <>
+              <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+              Enviando...
+            </>
+          ) : (
+            <>
+              <Printer className="size-4" aria-hidden="true" />
+              Como funciona
             </>
           )}
         </Button>
