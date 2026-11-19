@@ -408,9 +408,9 @@ export function DashboardScreen({
           )}
           <div className="flex flex-col leading-tight">
             <span className="font-medium">
-              {establishment?.name ?? "Caixa · Check-in"}
+              {establishment?.name ?? "Tela do Caixa"}
             </span>
-            <span className="text-xs text-muted-foreground">Caixa · Check-in</span>
+            <span className="text-xs text-muted-foreground">Tela do Caixa</span>
           </div>
         </div>
         <Button variant="ghost" size="sm" onClick={clearToken}>
